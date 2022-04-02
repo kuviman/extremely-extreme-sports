@@ -1,0 +1,8 @@
+{
+    "hitbox_origin": [
+        32,
+        63
+    ],
+    "hitbox_radius": 8,
+    "spawn_weight": 5
+}
