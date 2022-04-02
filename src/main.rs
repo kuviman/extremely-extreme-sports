@@ -106,6 +106,7 @@ impl simple_net::Model for Model {
             if *position < Self::AVALANCHE_START - Self::AVALANCHE_SPEED * 10.0 {
                 if self.players.iter().all(|player| !player.is_riding) {
                     self.avalanche_position = None;
+                    self.obstacles.clear();
                 }
             }
         }
@@ -330,7 +331,7 @@ impl Game {
     }
 
     fn draw_player_trail(&self, framebuffer: &mut ugli::Framebuffer, player: &Player) {
-        if !player.crashed {
+        if player.is_riding {
             self.draw_texture(
                 framebuffer,
                 &self.assets.ski,
@@ -341,14 +342,16 @@ impl Game {
     }
 
     fn draw_player(&self, framebuffer: &mut ugli::Framebuffer, player: &Player) {
-        if !player.crashed {
+        if !player.crashed && player.is_riding {
             self.draw_texture(
                 framebuffer,
                 &self.assets.ski,
                 Mat3::translate(player.position) * Mat3::rotate(player.rotation),
                 Color::BLACK,
             );
-        } else {
+        }
+
+        if player.crashed {
             let t = player.crash_timer.min(1.0);
             self.draw_texture(
                 framebuffer,
