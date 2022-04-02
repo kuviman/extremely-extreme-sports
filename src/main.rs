@@ -10,6 +10,7 @@ type Id = i64;
 #[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
 pub struct Obstacle {
     pub id: Id,
+    pub index: usize,
     pub radius: f32,
     pub position: Vec2<f32>,
 }
@@ -77,11 +78,32 @@ impl simple_net::Model for Model {
                     const TRACK_LEN: f32 = 1000.0;
                     const OBSTACLES_DENSITY: f32 = 0.1;
                     const TRACK_WIDTH: f32 = 20.0;
+                    let list: Vec<String> = serde_json::from_reader(
+                        std::fs::File::open(static_path().join("obstacles.json")).unwrap(),
+                    )
+                    .unwrap();
+                    let obstacles: Vec<(usize, ObstacleConfig)> = list
+                        .into_iter()
+                        .map(|path| {
+                            serde_json::from_reader(
+                                std::fs::File::open(static_path().join(format!("{}.json", path)))
+                                    .unwrap(),
+                            )
+                            .unwrap()
+                        })
+                        .enumerate()
+                        .collect();
                     'obstacles: for _ in 0..(TRACK_LEN * TRACK_WIDTH * OBSTACLES_DENSITY) as usize {
                         let x = global_rng().gen_range(-TRACK_WIDTH..TRACK_WIDTH);
                         let y = global_rng().gen_range(-TRACK_LEN..-Self::SPAWN_AREA);
                         let position = vec2(x, y);
-                        let radius = 1.0;
+                        let index = obstacles
+                            .choose_weighted(&mut global_rng(), |(_, obstacle)| {
+                                obstacle.spawn_weight
+                            })
+                            .unwrap()
+                            .0;
+                        let radius = obstacles[index].1.hitbox_radius / 20.0;
                         for obstacle in &self.obstacles {
                             if (obstacle.position - position).len() < radius + obstacle.radius {
                                 continue 'obstacles;
@@ -89,6 +111,7 @@ impl simple_net::Model for Model {
                         }
                         self.obstacles.insert(Obstacle {
                             id: self.next_id,
+                            index,
                             radius,
                             position,
                         });
@@ -127,6 +150,7 @@ pub struct Player {
     pub ski_rotation: f32,
     pub is_riding: bool,
     pub seen_no_avalanche: bool,
+    pub crash_position: Vec2<f32>,
 }
 
 impl Player {
@@ -156,6 +180,7 @@ impl Player {
             self.velocity += normal * force * delta_time;
             self.ski_velocity = self.velocity;
             self.ski_rotation = self.rotation;
+            self.crash_position = self.position;
         } else {
             self.crash_timer += delta_time;
             self.velocity -= self
@@ -208,6 +233,7 @@ impl Game {
             player_id,
             player: Player {
                 id: player_id,
+                crash_position: Vec2::ZERO,
                 is_riding: false,
                 seen_no_avalanche: false,
                 ski_rotation: 0.0,
@@ -357,7 +383,7 @@ impl Game {
                 framebuffer,
                 &self.assets.ski,
                 Mat3::translate(
-                    player.position
+                    player.crash_position
                         + player.ski_velocity * t
                         + vec2(0.0, (1.0 - (t * 2.0 - 1.0).sqr()) * 5.0),
                 ) * Mat3::rotate(player.ski_rotation + t * 5.0),
@@ -531,7 +557,7 @@ impl geng::State for Game {
                 }
                 self.draw_obstacle(
                     framebuffer,
-                    &self.assets.tree,
+                    &self.assets.obstacles[obstacle.index],
                     Mat3::translate(obstacle.position) * Mat3::scale_uniform(obstacle.radius),
                     Color::WHITE,
                 );

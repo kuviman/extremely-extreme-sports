@@ -27,9 +27,23 @@ impl geng::LoadAsset for Texture {
 pub struct Assets {
     pub player: Texture,
     pub ski: Texture,
-    pub tree: ObstacleAssets,
+    #[asset(load_with = "load_obstacles(&geng, &base_path)")]
+    pub obstacles: Vec<ObstacleAssets>,
     pub texture_program: ugli::Program,
     pub shadow: ugli::Program,
+}
+
+async fn load_obstacles(
+    geng: &Geng,
+    base_path: &std::path::Path,
+) -> anyhow::Result<Vec<ObstacleAssets>> {
+    let list = <String as geng::LoadAsset>::load(geng, &base_path.join("obstacles.json")).await?;
+    let list: Vec<String> = serde_json::from_str(&list)?;
+    let mut result = Vec::new();
+    for t in list {
+        result.push(geng::LoadAsset::load(geng, &base_path.join(t)).await?);
+    }
+    Ok(result)
 }
 
 #[derive(geng::Assets, Deserialize)]
@@ -37,6 +51,7 @@ pub struct Assets {
 pub struct ObstacleConfig {
     pub hitbox_origin: Vec2<f32>,
     pub hitbox_radius: f32,
+    pub spawn_weight: f32,
 }
 
 pub struct ObstacleAssets {
@@ -61,6 +76,7 @@ impl geng::LoadAsset for ObstacleAssets {
                 config: config.await?,
                 texture: texture.await?,
             };
+            result.texture.set_filter(ugli::Filter::Nearest);
             result.config.hitbox_origin.y =
                 result.texture.size().y as f32 - 1.0 - result.config.hitbox_origin.y;
             Ok(result)
