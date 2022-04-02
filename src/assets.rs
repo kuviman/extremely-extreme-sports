@@ -29,6 +29,7 @@ pub struct Assets {
     pub ski: Texture,
     pub tree: ObstacleAssets,
     pub texture_program: ugli::Program,
+    pub shadow: ugli::Program,
 }
 
 #[derive(geng::Assets, Deserialize)]

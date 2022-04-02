@@ -23,7 +23,8 @@ pub struct Model {
 }
 
 impl Model {
-    pub const AVALANCHE_SPEED: f32 = 10.0;
+    pub const AVALANCHE_SPEED: f32 = 7.0;
+    const AVALANCHE_START: f32 = 100.0;
     pub fn new() -> Self {
         Self {
             next_id: 0,
@@ -71,20 +72,27 @@ impl simple_net::Model for Model {
             }
             Message::StartTheRace => {
                 if self.avalanche_position.is_none() {
-                    self.avalanche_position = Some(100.0);
-                }
-                const TRACK_LEN: f32 = 1000.0;
-                const OBSTACLES_DENSITY: f32 = 0.1;
-                const TRACK_WIDTH: f32 = 20.0;
-                for _ in 0..(TRACK_LEN * TRACK_WIDTH * OBSTACLES_DENSITY) as usize {
-                    let x = global_rng().gen_range(-TRACK_WIDTH..TRACK_WIDTH);
-                    let y = global_rng().gen_range(-TRACK_LEN..0.0);
-                    self.obstacles.insert(Obstacle {
-                        id: self.next_id,
-                        radius: 1.0,
-                        position: vec2(x, y),
-                    });
-                    self.next_id += 1;
+                    self.avalanche_position = Some(Self::AVALANCHE_START);
+                    const TRACK_LEN: f32 = 1000.0;
+                    const OBSTACLES_DENSITY: f32 = 0.1;
+                    const TRACK_WIDTH: f32 = 20.0;
+                    'obstacles: for _ in 0..(TRACK_LEN * TRACK_WIDTH * OBSTACLES_DENSITY) as usize {
+                        let x = global_rng().gen_range(-TRACK_WIDTH..TRACK_WIDTH);
+                        let y = global_rng().gen_range(-TRACK_LEN..0.0);
+                        let position = vec2(x, y);
+                        let radius = 1.0;
+                        for obstacle in &self.obstacles {
+                            if (obstacle.position - position).len() < radius + obstacle.radius {
+                                continue 'obstacles;
+                            }
+                        }
+                        self.obstacles.insert(Obstacle {
+                            id: self.next_id,
+                            radius,
+                            position,
+                        });
+                        self.next_id += 1;
+                    }
                 }
             }
         }
@@ -94,6 +102,11 @@ impl simple_net::Model for Model {
         let delta_time = 1.0 / TICKS_PER_SECOND;
         if let Some(position) = &mut self.avalanche_position {
             *position -= Self::AVALANCHE_SPEED * delta_time;
+            if *position < Self::AVALANCHE_START - Self::AVALANCHE_SPEED * 10.0 {
+                if self.players.iter().all(|player| !player.is_riding) {
+                    self.avalanche_position = None;
+                }
+            }
         }
     }
 }
@@ -107,6 +120,11 @@ pub struct Player {
     pub input: f32,
     pub velocity: Vec2<f32>,
     pub crashed: bool,
+    pub crash_timer: f32,
+    pub ski_velocity: Vec2<f32>,
+    pub ski_rotation: f32,
+    pub is_riding: bool,
+    pub seen_no_avalanche: bool,
 }
 
 impl Player {
@@ -114,7 +132,7 @@ impl Player {
     const ROTATION_LIMIT: f32 = f32::PI / 3.0;
     const MAX_SPEED: f32 = 10.0;
     const MAX_WALK_SPEED: f32 = 1.0;
-    const FRICTION: f32 = 3.0;
+    const FRICTION: f32 = 5.0;
     const DOWNHILL_ACCELERATION: f32 = 5.0;
     const WALK_ACCELERATION: f32 = 10.0;
     const CRASH_DECELERATION: f32 = 3.0;
@@ -134,7 +152,10 @@ impl Player {
             let normal = vec2(1.0, 0.0).rotate(self.rotation);
             let force = -Vec2::dot(self.velocity, normal) * Self::FRICTION;
             self.velocity += normal * force * delta_time;
+            self.ski_velocity = self.velocity;
+            self.ski_rotation = self.rotation;
         } else {
+            self.crash_timer += delta_time;
             self.velocity -= self
                 .velocity
                 .clamp_len(..=Self::CRASH_DECELERATION * delta_time);
@@ -166,18 +187,23 @@ impl Game {
             camera: geng::Camera2d {
                 center: vec2(0.0, 0.0),
                 rotation: 0.0,
-                fov: 10.0,
+                fov: 20.0,
             },
             model,
             player_id,
             player: Player {
                 id: player_id,
+                is_riding: false,
+                seen_no_avalanche: false,
+                ski_rotation: 0.0,
+                crash_timer: 0.0,
                 position: Vec2::ZERO,
                 radius: 0.3,
                 rotation: 0.0,
                 input: 0.0,
                 velocity: Vec2::ZERO,
                 crashed: false,
+                ski_velocity: Vec2::ZERO,
             },
             trail_texture: (
                 ugli::Texture::new_with(geng.ugli(), vec2(1, 1), |_| Color::TRANSPARENT_WHITE),
@@ -227,6 +253,48 @@ impl Game {
         );
     }
 
+    fn draw_shadow(
+        &self,
+        framebuffer: &mut ugli::Framebuffer,
+        transform: Mat3<f32>,
+        color: Color<f32>,
+    ) {
+        let framebuffer_size = framebuffer.size();
+        ugli::draw(
+            framebuffer,
+            &self.assets.shadow,
+            ugli::DrawMode::TriangleFan,
+            &ugli::VertexBuffer::new_dynamic(
+                self.geng.ugli(),
+                vec![
+                    draw_2d::Vertex {
+                        a_pos: vec2(-1.0, -1.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(1.0, -1.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(1.0, 1.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(-1.0, 1.0),
+                    },
+                ],
+            ),
+            (
+                ugli::uniforms! {
+                    u_model_matrix: transform,
+                    u_color: color,
+                },
+                geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
+            ),
+            &ugli::DrawParameters {
+                blend_mode: Some(default()),
+                ..default()
+            },
+        );
+    }
+
     fn draw_obstacle(
         &self,
         framebuffer: &mut ugli::Framebuffer,
@@ -266,11 +334,24 @@ impl Game {
                 Mat3::translate(player.position) * Mat3::rotate(player.rotation),
                 Color::BLACK,
             );
+        } else {
+            let t = player.crash_timer.min(1.0);
+            self.draw_texture(
+                framebuffer,
+                &self.assets.ski,
+                Mat3::translate(
+                    player.position
+                        + player.ski_velocity * t
+                        + vec2(0.0, (1.0 - (t * 2.0 - 1.0).sqr()) * 5.0),
+                ) * Mat3::rotate(player.ski_rotation + t * 5.0),
+                Color::BLACK,
+            );
         }
         self.draw_texture(
             framebuffer,
             &self.assets.player,
-            Mat3::translate(player.position),
+            Mat3::translate(player.position)
+                * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0)),
             Color::WHITE,
         );
     }
@@ -300,6 +381,18 @@ impl geng::State for Game {
                 geng::Key::K => {
                     self.player.crashed = true;
                 }
+                geng::Key::R => {
+                    self.player = Player {
+                        position: vec2(0.0, 0.0),
+                        rotation: 0.0,
+                        velocity: Vec2::ZERO,
+                        crashed: false,
+                        crash_timer: 0.0,
+                        is_riding: false,
+                        seen_no_avalanche: false,
+                        ..self.player
+                    };
+                }
                 _ => {}
             },
             _ => {}
@@ -316,7 +409,14 @@ impl geng::State for Game {
         }
         {
             let model = self.model.get();
+            println!("{:?}", model.avalanche_position);
             if model.avalanche_position.is_none() {
+                self.player.seen_no_avalanche = true;
+            }
+            if self.player.seen_no_avalanche && model.avalanche_position.is_some() {
+                self.player.is_riding = true;
+            }
+            if !self.player.is_riding {
                 self.player.update_walk(delta_time);
             } else {
                 self.player.update_riding(delta_time);
@@ -370,6 +470,17 @@ impl geng::State for Game {
         let view_area = self.camera.view_area(framebuffer.size().map(|x| x as f32));
         self.trail_texture = (new_trail_texture, view_area);
 
+        let in_view = |position: Vec2<f32>| -> bool {
+            let position_in_view = view_area.transform.inverse() * position.extend(1.0);
+            if position_in_view.x.abs() > 1.5 {
+                return false;
+            }
+            if position_in_view.y.abs() > 1.5 {
+                return false;
+            }
+            true
+        };
+
         ugli::clear(framebuffer, Some(Color::WHITE), None);
 
         self.geng.draw_2d(
@@ -378,54 +489,43 @@ impl geng::State for Game {
             &draw_2d::TexturedQuad::unit(&self.trail_texture.0)
                 .transform(self.trail_texture.1.transform),
         );
+
+        for player in self.iter_players() {
+            self.draw_shadow(
+                framebuffer,
+                Mat3::translate(player.position) * Mat3::scale_uniform(player.radius),
+                Color::rgba(0.5, 0.5, 0.5, 0.5),
+            );
+        }
+        if self.player.is_riding {
+            for obstacle in &model.obstacles {
+                if !in_view(obstacle.position) {
+                    continue;
+                }
+                self.draw_shadow(
+                    framebuffer,
+                    Mat3::translate(obstacle.position) * Mat3::scale_uniform(obstacle.radius),
+                    Color::rgba(0.5, 0.5, 0.5, 0.5),
+                );
+            }
+        }
+
         for player in self.iter_players() {
             self.draw_player(framebuffer, &player);
         }
 
-        for obstacle in &model.obstacles {
-            let position_in_view = view_area.transform.inverse() * obstacle.position.extend(1.0);
-            if position_in_view.x.abs() > 1.0 {
-                continue;
+        if self.player.is_riding {
+            for obstacle in &model.obstacles {
+                if !in_view(obstacle.position) {
+                    continue;
+                }
+                self.draw_obstacle(
+                    framebuffer,
+                    &self.assets.tree,
+                    Mat3::translate(obstacle.position) * Mat3::scale_uniform(obstacle.radius),
+                    Color::WHITE,
+                );
             }
-            if position_in_view.y.abs() > 1.0 {
-                continue;
-            }
-            self.draw_obstacle(
-                framebuffer,
-                &self.assets.tree,
-                Mat3::translate(obstacle.position) * Mat3::scale_uniform(obstacle.radius),
-                Color::WHITE,
-            );
-        }
-
-        for player in self.iter_players() {
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::Ellipse::circle(
-                    player.position,
-                    player.radius,
-                    Color::rgba(0.0, 1.0, 0.0, 0.5),
-                ),
-            );
-        }
-        for obstacle in &model.obstacles {
-            let position_in_view = view_area.transform.inverse() * obstacle.position.extend(1.0);
-            if position_in_view.x.abs() > 1.0 {
-                continue;
-            }
-            if position_in_view.y.abs() > 1.0 {
-                continue;
-            }
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::Ellipse::circle(
-                    obstacle.position,
-                    obstacle.radius,
-                    Color::rgba(0.0, 1.0, 0.0, 0.5),
-                ),
-            );
         }
 
         if let Some(position) = model.avalanche_position {
