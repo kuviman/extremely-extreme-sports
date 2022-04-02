@@ -7,20 +7,29 @@ use assets::*;
 
 type Id = i64;
 
+#[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
+pub struct Obstacle {
+    pub id: Id,
+    pub radius: f32,
+    pub position: Vec2<f32>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
 pub struct Model {
-    next_player_id: Id,
+    next_id: Id,
     avalanche_position: Option<f32>,
     players: Collection<Player>,
+    obstacles: Collection<Obstacle>,
 }
 
 impl Model {
     pub const AVALANCHE_SPEED: f32 = 10.0;
     pub fn new() -> Self {
         Self {
-            next_player_id: 0,
+            next_id: 0,
             avalanche_position: None,
             players: default(),
+            obstacles: default(),
         }
     }
 }
@@ -42,8 +51,8 @@ impl simple_net::Model for Model {
     type Event = Event;
     const TICKS_PER_SECOND: f32 = TICKS_PER_SECOND;
     fn new_player(&mut self) -> Self::PlayerId {
-        let player_id = self.next_player_id;
-        self.next_player_id += 1;
+        let player_id = self.next_id;
+        self.next_id += 1;
         player_id
     }
 
@@ -63,6 +72,19 @@ impl simple_net::Model for Model {
             Message::StartTheRace => {
                 if self.avalanche_position.is_none() {
                     self.avalanche_position = Some(100.0);
+                }
+                const TRACK_LEN: f32 = 1000.0;
+                const OBSTACLES_DENSITY: f32 = 0.1;
+                const TRACK_WIDTH: f32 = 20.0;
+                for _ in 0..(TRACK_LEN * TRACK_WIDTH * OBSTACLES_DENSITY) as usize {
+                    let x = global_rng().gen_range(-TRACK_WIDTH..TRACK_WIDTH);
+                    let y = global_rng().gen_range(-TRACK_LEN..0.0);
+                    self.obstacles.insert(Obstacle {
+                        id: self.next_id,
+                        radius: 1.0,
+                        position: vec2(x, y),
+                    });
+                    self.next_id += 1;
                 }
             }
         }
@@ -151,7 +173,7 @@ impl Game {
             player: Player {
                 id: player_id,
                 position: Vec2::ZERO,
-                radius: 1.0,
+                radius: 0.3,
                 rotation: 0.0,
                 input: 0.0,
                 velocity: Vec2::ZERO,
@@ -202,6 +224,26 @@ impl Game {
                 geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
             ),
             &ugli::DrawParameters { ..default() },
+        );
+    }
+
+    fn draw_obstacle(
+        &self,
+        framebuffer: &mut ugli::Framebuffer,
+        obstacle: &ObstacleAssets,
+        transform: Mat3<f32>,
+        color: Color<f32>,
+    ) {
+        self.draw_texture(
+            framebuffer,
+            &obstacle.texture,
+            transform
+                * Mat3::scale_uniform(1.0 / obstacle.config.hitbox_radius)
+                * Mat3::translate(-obstacle.config.hitbox_origin)
+                * Mat3::scale(obstacle.texture.size().map(|x| x as f32))
+                * Mat3::scale_uniform(0.5)
+                * Mat3::translate(vec2(1.0, 1.0)),
+            color,
         );
     }
 
@@ -278,6 +320,16 @@ impl geng::State for Game {
                 self.player.update_walk(delta_time);
             } else {
                 self.player.update_riding(delta_time);
+                for obstacle in &model.obstacles {
+                    let delta_pos = self.player.position - obstacle.position;
+                    let peneration = self.player.radius + obstacle.radius - delta_pos.len();
+                    if peneration > 0.0 {
+                        let normal = delta_pos.normalize_or_zero();
+                        self.player.position += normal * peneration;
+                        self.player.velocity -= normal * Vec2::dot(self.player.velocity, normal);
+                        self.player.crashed = true;
+                    }
+                }
             }
             if let Some(position) = model.avalanche_position {
                 if self.player.position.y > position {
@@ -315,10 +367,8 @@ impl geng::State for Game {
                 self.draw_player_trail(framebuffer, &player);
             }
         }
-        self.trail_texture = (
-            new_trail_texture,
-            self.camera.view_area(framebuffer.size().map(|x| x as f32)),
-        );
+        let view_area = self.camera.view_area(framebuffer.size().map(|x| x as f32));
+        self.trail_texture = (new_trail_texture, view_area);
 
         ugli::clear(framebuffer, Some(Color::WHITE), None);
 
@@ -330,6 +380,52 @@ impl geng::State for Game {
         );
         for player in self.iter_players() {
             self.draw_player(framebuffer, &player);
+        }
+
+        for obstacle in &model.obstacles {
+            let position_in_view = view_area.transform.inverse() * obstacle.position.extend(1.0);
+            if position_in_view.x.abs() > 1.0 {
+                continue;
+            }
+            if position_in_view.y.abs() > 1.0 {
+                continue;
+            }
+            self.draw_obstacle(
+                framebuffer,
+                &self.assets.tree,
+                Mat3::translate(obstacle.position) * Mat3::scale_uniform(obstacle.radius),
+                Color::WHITE,
+            );
+        }
+
+        for player in self.iter_players() {
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::Ellipse::circle(
+                    player.position,
+                    player.radius,
+                    Color::rgba(0.0, 1.0, 0.0, 0.5),
+                ),
+            );
+        }
+        for obstacle in &model.obstacles {
+            let position_in_view = view_area.transform.inverse() * obstacle.position.extend(1.0);
+            if position_in_view.x.abs() > 1.0 {
+                continue;
+            }
+            if position_in_view.y.abs() > 1.0 {
+                continue;
+            }
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::Ellipse::circle(
+                    obstacle.position,
+                    obstacle.radius,
+                    Color::rgba(0.0, 1.0, 0.0, 0.5),
+                ),
+            );
         }
 
         if let Some(position) = model.avalanche_position {

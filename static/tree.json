@@ -1,0 +1,7 @@
+{
+    "hitbox_origin": [
+        70,
+        90
+    ],
+    "hitbox_radius": 45
+}
