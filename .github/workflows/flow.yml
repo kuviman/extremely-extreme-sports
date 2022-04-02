@@ -4,85 +4,31 @@ env:
   SERVER_ADDR: ${{ secrets.SERVER_ADDR }}
 
 jobs:
-  build-web:
-    name: Build (Web)
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    env:
-      WSS: wss
+    container: kuviman/geng
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          target: wasm32-unknown-unknown
-
-      - name: Install cargo-geng
-        run: |
-          cargo install cargo-geng --git https://github.com/kuviman/geng
-          cargo install wasm-bindgen-cli
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: geng
-          args: build --release --target wasm32-unknown-unknown
-
-      - name: Upload artifacts
+      - run: WSS=wss cargo geng build --release --target wasm32-unknown-unknown
+      - name: Upload artifacts (web)
         uses: actions/upload-artifact@v2
         with:
           name: web
           path: target/geng
-
-  build-native:
-    name: Build (Native)
-    runs-on: ${{ matrix.platform.runs-on }}
-    strategy:
-      matrix:
-        platform:
-          - runs-on: ubuntu-latest
-            channel: linux
-          - runs-on: macos-latest
-            channel: mac
-          - runs-on: windows-latest
-            channel: windows
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Install things
-        if: matrix.platform.channel == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-
-      - name: Install cargo-geng
-        run: cargo install cargo-geng --git https://github.com/kuviman/geng
-
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: geng
-          args: build --release
-
-      - name: Upload artifacts
+      - run: cargo geng build --release
+      - name: Upload artifacts (linux)
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ matrix.platform.channel }}
+          name: linux
           path: target/geng
 
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
     needs:
-      - build-web
-      - build-native
+      - build
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v2
@@ -101,30 +47,6 @@ jobs:
           ITCH_GAME: ld50
           ITCH_USER: kuviman
           PACKAGE: web
-      - name: Upload itch.io (Windows)
-        uses: josephbmanley/butler-publish-itchio-action@master
-        env:
-          BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
-          CHANNEL: windows
-          ITCH_GAME: ld50
-          ITCH_USER: kuviman
-          PACKAGE: windows
-      - name: Upload itch.io (Linux)
-        uses: josephbmanley/butler-publish-itchio-action@master
-        env:
-          BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
-          CHANNEL: linux
-          ITCH_GAME: ld50
-          ITCH_USER: kuviman
-          PACKAGE: linux
-      - name: Upload itch.io (MacOS)
-        uses: josephbmanley/butler-publish-itchio-action@master
-        env:
-          BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
-          CHANNEL: mac
-          ITCH_GAME: ld50
-          ITCH_USER: kuviman
-          PACKAGE: mac
       - name: Copy server files
         uses: appleboy/scp-action@master
         with:
