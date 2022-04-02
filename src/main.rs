@@ -1,81 +1,143 @@
+use geng::net::simple as simple_net;
 use geng::prelude::*;
 
-#[derive(Deref)]
-pub struct Texture(#[deref] ugli::Texture);
+mod assets;
 
-impl std::borrow::Borrow<ugli::Texture> for &'_ Texture {
-    fn borrow(&self) -> &ugli::Texture {
-        &self.0
-    }
+use assets::*;
+
+type Id = i64;
+
+#[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
+pub struct Model {
+    next_player_id: Id,
+    avalanche_position: Option<f32>,
+    players: Collection<Player>,
 }
 
-impl geng::LoadAsset for Texture {
-    fn load(geng: &Geng, path: &std::path::Path) -> geng::AssetFuture<Self> {
-        let texture = ugli::Texture::load(geng, path);
-        async move {
-            let mut texture = texture.await?;
-            texture.set_filter(ugli::Filter::Nearest);
-            Ok(Self(texture))
+impl Model {
+    pub const AVALANCHE_SPEED: f32 = 10.0;
+    pub fn new() -> Self {
+        Self {
+            next_player_id: 0,
+            avalanche_position: None,
+            players: default(),
         }
-        .boxed_local()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum Message {
+    UpdatePlayer(Player),
+    StartTheRace,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum Event {}
+
+const TICKS_PER_SECOND: f32 = 10.0;
+
+impl simple_net::Model for Model {
+    type PlayerId = Id;
+    type Message = Message;
+    type Event = Event;
+    const TICKS_PER_SECOND: f32 = TICKS_PER_SECOND;
+    fn new_player(&mut self) -> Self::PlayerId {
+        let player_id = self.next_player_id;
+        self.next_player_id += 1;
+        player_id
     }
 
-    const DEFAULT_EXT: Option<&'static str> = Some("png");
+    fn drop_player(&mut self, player_id: &Self::PlayerId) {
+        self.players.remove(&player_id);
+    }
+
+    fn handle_message(&mut self, player_id: &Self::PlayerId, message: Message) {
+        let player_id = *player_id;
+        match message {
+            Message::UpdatePlayer(mut player) => {
+                if player.id != player_id {
+                    return;
+                }
+                self.players.insert(player);
+            }
+            Message::StartTheRace => {
+                if self.avalanche_position.is_none() {
+                    self.avalanche_position = Some(100.0);
+                }
+            }
+        }
+    }
+
+    fn tick(&mut self, events: &mut Vec<Event>) {
+        let delta_time = 1.0 / TICKS_PER_SECOND;
+        if let Some(position) = &mut self.avalanche_position {
+            *position -= Self::AVALANCHE_SPEED * delta_time;
+        }
+    }
 }
 
-#[derive(geng::Assets)]
-pub struct Assets {
-    pub player: Texture,
-    pub ski: Texture,
-    pub tree: Rc<Texture>,
-    pub texture_program: ugli::Program,
-}
-
+#[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
 pub struct Player {
+    pub id: Id,
     pub position: Vec2<f32>,
     pub radius: f32,
     pub rotation: f32,
-    pub target_rotation: f32,
+    pub input: f32,
     pub velocity: Vec2<f32>,
+    pub crashed: bool,
 }
 
 impl Player {
     const ROTATION_SPEED: f32 = 2.0 * f32::PI;
     const ROTATION_LIMIT: f32 = f32::PI / 3.0;
     const MAX_SPEED: f32 = 10.0;
+    const MAX_WALK_SPEED: f32 = 1.0;
     const FRICTION: f32 = 3.0;
     const DOWNHILL_ACCELERATION: f32 = 5.0;
-    pub fn update(&mut self, delta_time: f32) {
-        self.target_rotation = self.target_rotation.clamp_abs(Self::ROTATION_LIMIT);
-        self.rotation +=
-            (self.target_rotation - self.rotation).clamp_abs(Self::ROTATION_SPEED * delta_time);
-        self.velocity.y += (-Self::MAX_SPEED - self.velocity.y)
-            .clamp_abs(Self::DOWNHILL_ACCELERATION * delta_time);
+    const WALK_ACCELERATION: f32 = 10.0;
+    const CRASH_DECELERATION: f32 = 3.0;
+    pub fn update_walk(&mut self, delta_time: f32) {
+        let target_speed = self.input.clamp_abs(Self::MAX_WALK_SPEED);
+        self.velocity.x +=
+            (target_speed - self.velocity.x).clamp_abs(Self::WALK_ACCELERATION * delta_time);
         self.position += self.velocity * delta_time;
-        let normal = vec2(1.0, 0.0).rotate(self.rotation);
-        let force = -Vec2::dot(self.velocity, normal) * Self::FRICTION;
-        self.velocity += normal * force * delta_time;
     }
-}
-
-pub struct Obstacle {
-    pub position: Vec2<f32>,
-    pub radius: f32,
-    pub texture: Rc<Texture>,
+    pub fn update_riding(&mut self, delta_time: f32) {
+        if !self.crashed {
+            let target_rotation = (-self.input * f32::PI).clamp_abs(Self::ROTATION_LIMIT);
+            self.rotation +=
+                (target_rotation - self.rotation).clamp_abs(Self::ROTATION_SPEED * delta_time);
+            self.velocity.y += (-Self::MAX_SPEED - self.velocity.y)
+                .clamp_abs(Self::DOWNHILL_ACCELERATION * delta_time);
+            let normal = vec2(1.0, 0.0).rotate(self.rotation);
+            let force = -Vec2::dot(self.velocity, normal) * Self::FRICTION;
+            self.velocity += normal * force * delta_time;
+        } else {
+            self.velocity -= self
+                .velocity
+                .clamp_len(..=Self::CRASH_DECELERATION * delta_time);
+        }
+        self.position += self.velocity * delta_time;
+    }
 }
 
 pub struct Game {
     geng: Geng,
     assets: Rc<Assets>,
+    player_id: Id,
     camera: geng::Camera2d,
-    time: f32,
+    model: simple_net::Remote<Model>,
     player: Player,
-    obstacles: Vec<Obstacle>,
     trail_texture: (ugli::Texture, Quad<f32>),
 }
 
 impl Game {
-    pub fn new(geng: &Geng, assets: &Rc<Assets>) -> Self {
+    pub fn new(
+        geng: &Geng,
+        assets: &Rc<Assets>,
+        player_id: Id,
+        model: simple_net::Remote<Model>,
+    ) -> Self {
         Self {
             geng: geng.clone(),
             assets: assets.clone(),
@@ -84,27 +146,16 @@ impl Game {
                 rotation: 0.0,
                 fov: 10.0,
             },
-            time: 0.0,
+            model,
+            player_id,
             player: Player {
+                id: player_id,
                 position: Vec2::ZERO,
                 radius: 1.0,
                 rotation: 0.0,
-                target_rotation: 0.0,
+                input: 0.0,
                 velocity: Vec2::ZERO,
-            },
-            obstacles: {
-                let mut result = Vec::new();
-                for _ in 0..100 {
-                    result.push(Obstacle {
-                        position: vec2(
-                            global_rng().gen_range(-10.0..=10.0),
-                            global_rng().gen_range(-100.0..0.0),
-                        ),
-                        radius: 1.0,
-                        texture: assets.tree.clone(),
-                    })
-                }
-                result
+                crashed: false,
             },
             trail_texture: (
                 ugli::Texture::new_with(geng.ugli(), vec2(1, 1), |_| Color::TRANSPARENT_WHITE),
@@ -153,22 +204,95 @@ impl Game {
             &ugli::DrawParameters { ..default() },
         );
     }
+
+    fn draw_player_trail(&self, framebuffer: &mut ugli::Framebuffer, player: &Player) {
+        if !player.crashed {
+            self.draw_texture(
+                framebuffer,
+                &self.assets.ski,
+                Mat3::translate(player.position) * Mat3::rotate(player.rotation),
+                Color::rgb(0.8, 0.8, 0.8),
+            );
+        }
+    }
+
+    fn draw_player(&self, framebuffer: &mut ugli::Framebuffer, player: &Player) {
+        if !player.crashed {
+            self.draw_texture(
+                framebuffer,
+                &self.assets.ski,
+                Mat3::translate(player.position) * Mat3::rotate(player.rotation),
+                Color::BLACK,
+            );
+        }
+        self.draw_texture(
+            framebuffer,
+            &self.assets.player,
+            Mat3::translate(player.position),
+            Color::WHITE,
+        );
+    }
+
+    fn iter_players(&self) -> impl Iterator<Item = Player> {
+        std::iter::once(&self.player)
+            .chain(
+                self.model
+                    .get()
+                    .players
+                    .iter()
+                    .filter(move |player| player.id != self.player.id),
+            )
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
 }
 
 impl geng::State for Game {
+    fn handle_event(&mut self, event: geng::Event) {
+        match event {
+            geng::Event::KeyDown { key } => match key {
+                geng::Key::Space => {
+                    self.model.send(Message::StartTheRace);
+                }
+                geng::Key::K => {
+                    self.player.crashed = true;
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
-        self.time += delta_time;
-        self.player.target_rotation = 0.0;
+        self.player.input = 0.0;
         if self.geng.window().is_key_pressed(geng::Key::A) {
-            self.player.target_rotation += f32::PI / 2.0;
+            self.player.input -= 1.0;
         }
         if self.geng.window().is_key_pressed(geng::Key::D) {
-            self.player.target_rotation -= f32::PI / 2.0;
+            self.player.input += 1.0;
         }
-        self.player.update(delta_time);
+        {
+            let model = self.model.get();
+            if model.avalanche_position.is_none() {
+                self.player.update_walk(delta_time);
+            } else {
+                self.player.update_riding(delta_time);
+            }
+            if let Some(position) = model.avalanche_position {
+                if self.player.position.y > position {
+                    self.player.crashed = true;
+                }
+            }
+        }
+        self.model.send(Message::UpdatePlayer(self.player.clone()));
+
+        for event in self.model.update() {
+            // TODO handle
+        }
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
+        let model = self.model.get();
         self.camera.center = self.player.position;
 
         let mut new_trail_texture =
@@ -187,12 +311,9 @@ impl geng::State for Game {
                 self.trail_texture.1.transform,
                 Color::WHITE,
             );
-            self.draw_texture(
-                framebuffer,
-                &self.assets.ski,
-                Mat3::translate(self.player.position) * Mat3::rotate(self.player.rotation),
-                Color::rgb(0.8, 0.8, 0.8),
-            );
+            for player in self.iter_players() {
+                self.draw_player_trail(framebuffer, &player);
+            }
         }
         self.trail_texture = (
             new_trail_texture,
@@ -207,34 +328,25 @@ impl geng::State for Game {
             &draw_2d::TexturedQuad::unit(&self.trail_texture.0)
                 .transform(self.trail_texture.1.transform),
         );
+        for player in self.iter_players() {
+            self.draw_player(framebuffer, &player);
+        }
 
-        self.draw_texture(
-            framebuffer,
-            &self.assets.ski,
-            Mat3::translate(self.player.position) * Mat3::rotate(self.player.rotation),
-            Color::BLACK,
-        );
-        self.geng.draw_2d(
-            framebuffer,
-            &self.camera,
-            &draw_2d::TexturedQuad::unit(&self.assets.player).translate(self.player.position),
-        );
-        for obstacle in &self.obstacles {
+        if let Some(position) = model.avalanche_position {
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::TexturedQuad::unit(&**obstacle.texture).translate(obstacle.position),
+                &draw_2d::Quad::unit(Color::rgba(0.5, 0.5, 0.5, 0.5))
+                    .translate(vec2(0.0, 1.0))
+                    .scale(vec2(1000.0, 10.0))
+                    .translate(vec2(0.0, position)),
             );
         }
     }
 }
 
 fn main() {
-    logger::init().unwrap();
-    geng::setup_panic_handler();
-    let geng = Geng::new("LD50");
-    geng::run(
-        &geng,
+    geng::net::simple::run("LD50", Model::new, |geng, player_id, model| {
         geng::LoadingScreen::new(
             &geng,
             geng::EmptyLoadingScreen,
@@ -243,9 +355,9 @@ fn main() {
                 let geng = geng.clone();
                 move |assets| {
                     let assets = assets.expect("Failed to load assets");
-                    Game::new(&geng, &Rc::new(assets))
+                    Game::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },
-        ),
-    );
+        )
+    });
 }
