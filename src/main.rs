@@ -25,6 +25,7 @@ pub struct Model {
 impl Model {
     pub const AVALANCHE_SPEED: f32 = 7.0;
     const AVALANCHE_START: f32 = 100.0;
+    const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
         Self {
             next_id: 0,
@@ -78,7 +79,7 @@ impl simple_net::Model for Model {
                     const TRACK_WIDTH: f32 = 20.0;
                     'obstacles: for _ in 0..(TRACK_LEN * TRACK_WIDTH * OBSTACLES_DENSITY) as usize {
                         let x = global_rng().gen_range(-TRACK_WIDTH..TRACK_WIDTH);
-                        let y = global_rng().gen_range(-TRACK_LEN..0.0);
+                        let y = global_rng().gen_range(-TRACK_LEN..-Self::SPAWN_AREA);
                         let position = vec2(x, y);
                         let radius = 1.0;
                         for obstacle in &self.obstacles {
@@ -161,6 +162,19 @@ impl Player {
                 .clamp_len(..=Self::CRASH_DECELERATION * delta_time);
         }
         self.position += self.velocity * delta_time;
+    }
+
+    fn respawn(&mut self) {
+        *self = Player {
+            position: vec2(0.0, 0.0),
+            rotation: 0.0,
+            velocity: Vec2::ZERO,
+            crashed: false,
+            crash_timer: 0.0,
+            is_riding: false,
+            seen_no_avalanche: false,
+            ..*self
+        };
     }
 }
 
@@ -382,16 +396,7 @@ impl geng::State for Game {
                     self.player.crashed = true;
                 }
                 geng::Key::R => {
-                    self.player = Player {
-                        position: vec2(0.0, 0.0),
-                        rotation: 0.0,
-                        velocity: Vec2::ZERO,
-                        crashed: false,
-                        crash_timer: 0.0,
-                        is_riding: false,
-                        seen_no_avalanche: false,
-                        ..self.player
-                    };
+                    self.player.respawn();
                 }
                 _ => {}
             },
@@ -409,7 +414,6 @@ impl geng::State for Game {
         }
         {
             let model = self.model.get();
-            println!("{:?}", model.avalanche_position);
             if model.avalanche_position.is_none() {
                 self.player.seen_no_avalanche = true;
             }
@@ -430,11 +434,14 @@ impl geng::State for Game {
                         self.player.crashed = true;
                     }
                 }
-            }
-            if let Some(position) = model.avalanche_position {
-                if self.player.position.y > position {
-                    self.player.crashed = true;
+                if let Some(position) = model.avalanche_position {
+                    if self.player.position.y > position {
+                        self.player.crashed = true;
+                    }
                 }
+            }
+            if self.player.crash_timer > 5.0 {
+                self.player.respawn();
             }
         }
         self.model.send(Message::UpdatePlayer(self.player.clone()));
