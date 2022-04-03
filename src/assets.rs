@@ -41,6 +41,8 @@ pub struct Assets {
     pub spectating_text: ugli::Texture,
     pub ava_warning: ugli::Texture,
     pub font: Font,
+    #[asset(range = "1..=3", path = "crash_sound*.wav")]
+    pub crash_sounds: Vec<geng::Sound>,
 }
 
 async fn load_obstacles(

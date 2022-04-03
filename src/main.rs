@@ -458,6 +458,11 @@ impl Game {
             Color::WHITE,
         );
     }
+    fn play_sound(&self, sound: &geng::Sound, pos: Vec2<f32>) {
+        let mut effect = sound.effect();
+        effect.set_volume((1.0 - ((pos - self.camera.center).len() / 10.0).sqr()) as f64);
+        effect.play()
+    }
 }
 
 impl geng::State for Game {
@@ -484,6 +489,8 @@ impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
         self.time += delta_time;
+
+        let mut sounds: Vec<(&[geng::Sound], Vec2<f32>)> = Vec::new();
 
         self.players.get_mut(&self.player_id).unwrap().input = 0.0;
         if self.geng.window().is_key_pressed(geng::Key::A)
@@ -573,15 +580,24 @@ impl geng::State for Game {
                             let normal = delta_pos.normalize_or_zero();
                             player.position += normal * peneration;
                             player.velocity -= normal * Vec2::dot(player.velocity, normal);
-                            player.crashed = true;
+                            if !player.crashed {
+                                player.crashed = true;
+                                sounds.push((&self.assets.crash_sounds, player.position));
+                            }
                         }
                     }
                     if player.position.x.abs() > TRACK_WIDTH - player.radius {
-                        player.crashed = true;
+                        if !player.crashed {
+                            player.crashed = true;
+                            sounds.push((&self.assets.crash_sounds, player.position));
+                        }
                     }
                     if let Some(position) = model.avalanche_position {
                         if player.position.y > position {
-                            player.crashed = true;
+                            if !player.crashed {
+                                player.crashed = true;
+                                sounds.push((&self.assets.crash_sounds, player.position));
+                            }
                         }
                     }
                 }
@@ -655,6 +671,10 @@ impl geng::State for Game {
 
         for event in self.model.update() {
             // TODO handle
+        }
+
+        for (sounds, pos) in sounds {
+            self.play_sound(sounds.choose(&mut global_rng()).unwrap(), pos);
         }
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
