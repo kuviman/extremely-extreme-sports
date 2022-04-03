@@ -23,7 +23,9 @@ void main() {
 uniform sampler2D u_texture;
 uniform vec4 u_color;
 void main() {
-    gl_FragColor = vec4(0.8, 0.8, 0.85, 0.7 * texture2D(u_texture, v_vt).w);
+    // gl_FragColor = vec4(0.8, 0.8, 0.85, 0.7 * texture2D(u_texture, v_vt).w);
+    gl_FragColor = u_color;
+    gl_FragColor.w *= texture2D(u_texture, v_vt).w;
     gl_FragColor.w *= v_opacity;
 }
 #endif
