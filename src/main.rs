@@ -979,7 +979,7 @@ impl geng::State for Game {
                 &self.camera,
                 self.camera.center + vec2(0.0, 7.0),
                 1.0,
-                &format!("resulted {}m", *score as i32),
+                &format!("scored {}", (*score * 100.0) as i32),
                 0.5,
             );
         }
@@ -989,9 +989,17 @@ impl geng::State for Game {
                 &self.camera,
                 self.camera.center + vec2(0.0, -9.0),
                 1.0,
-                &format!("score {}m", (-target_player.position.y) as i32),
+                &format!("score {}", (-target_player.position.y * 100.0) as i32),
                 0.5,
             );
+            // self.assets.font.draw(
+            //     framebuffer,
+            //     &self.camera,
+            //     self.camera.center + vec2(0.0, -10.0),
+            //     1.0,
+            //     &format!("speed {}m per second", (-target_player.velocity.y) as i32),
+            //     0.5,
+            // );
         }
     }
 }
