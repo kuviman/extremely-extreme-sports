@@ -33,6 +33,8 @@ pub struct Assets {
     pub shadow: ugli::Program,
     pub particle: ugli::Texture,
     pub particle_program: ugli::Program,
+    pub border: ugli::Texture,
+    pub background: ugli::Texture,
 }
 
 async fn load_obstacles(

@@ -21,7 +21,8 @@ pub struct Model {
     next_id: Id,
     avalanche_position: Option<f32>,
     players: Collection<Player>,
-    obstacles: Collection<Obstacle>,
+    #[diff = "eq"]
+    obstacles: Vec<Obstacle>,
 }
 
 impl Model {
@@ -44,7 +45,7 @@ pub enum Message {
     UpdatePlayer(Player),
     StartTheRace,
 }
-const TRACK_WIDTH: f32 = 20.0;
+const TRACK_WIDTH: f32 = 10.0;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Event {}
@@ -96,9 +97,6 @@ impl simple_net::Model for Model {
                         .enumerate()
                         .collect();
                     'obstacles: for _ in 0..(TRACK_LEN * TRACK_WIDTH * OBSTACLES_DENSITY) as usize {
-                        let x = global_rng().gen_range(-TRACK_WIDTH..TRACK_WIDTH);
-                        let y = global_rng().gen_range(-TRACK_LEN..-Self::SPAWN_AREA);
-                        let position = vec2(x, y);
                         let index = obstacles
                             .choose_weighted(&mut global_rng(), |(_, obstacle)| {
                                 obstacle.spawn_weight
@@ -106,12 +104,16 @@ impl simple_net::Model for Model {
                             .unwrap()
                             .0;
                         let radius = obstacles[index].1.hitbox_radius / 20.0;
+                        let w = TRACK_WIDTH - radius;
+                        let x = global_rng().gen_range(-w..w);
+                        let y = global_rng().gen_range(-TRACK_LEN..-Self::SPAWN_AREA);
+                        let position = vec2(x, y);
                         for obstacle in &self.obstacles {
                             if (obstacle.position - position).len() < radius + obstacle.radius {
                                 continue 'obstacles;
                             }
                         }
-                        self.obstacles.insert(Obstacle {
+                        self.obstacles.push(Obstacle {
                             id: self.next_id,
                             index,
                             radius,
@@ -119,6 +121,7 @@ impl simple_net::Model for Model {
                         });
                         self.next_id += 1;
                     }
+                    self.obstacles.sort_by_key(|o| -r32(o.position.y));
                 }
             }
         }
@@ -504,12 +507,16 @@ impl geng::State for Game {
                             player.crashed = true;
                         }
                     }
+                    if player.position.x.abs() > TRACK_WIDTH - player.radius {
+                        player.crashed = true;
+                    }
                     if let Some(position) = model.avalanche_position {
                         if player.position.y > position {
                             player.crashed = true;
                         }
                     }
                 }
+                player.position.x = player.position.x.clamp_abs(TRACK_WIDTH - player.radius);
             }
             self.next_particle -= delta_time;
             while self.next_particle < 0.0 {
@@ -617,6 +624,60 @@ impl geng::State for Game {
 
         let framebuffer_size = framebuffer.size();
 
+        let c2 = Color::rgba(0.9, 0.9, 0.95, 0.0);
+        let c1 = Color::rgba(0.9, 0.9, 0.95, 0.9);
+
+        self.geng.draw_2d(
+            framebuffer,
+            &self.camera,
+            &draw_2d::Quad::new(
+                AABB::point(vec2(TRACK_WIDTH, 0.0))
+                    .extend_right(TRACK_WIDTH * 2.0)
+                    .extend_up(self.camera.center.y - self.camera.fov),
+                c1,
+            ),
+        );
+        self.geng.draw_2d(
+            framebuffer,
+            &self.camera,
+            &draw_2d::Quad::new(
+                AABB::point(vec2(-TRACK_WIDTH, 0.0))
+                    .extend_right(-TRACK_WIDTH * 2.0)
+                    .extend_up(self.camera.center.y - self.camera.fov),
+                c1,
+            ),
+        );
+        {
+            let p = |x: f32, y: f32| draw_2d::TexturedVertex {
+                a_pos: vec2(TRACK_WIDTH + x * 2.0, y),
+                a_color: Color::WHITE,
+                a_vt: vec2(x * 0.999, y / 2.0),
+            };
+            let y = self.camera.center.y - self.camera.fov;
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::TexturedPolygon::new(
+                    vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, y), p(0.0, y)],
+                    &self.assets.border,
+                ),
+            );
+            let p = |x: f32, y: f32| draw_2d::TexturedVertex {
+                a_pos: vec2(-TRACK_WIDTH - x * 2.0, y),
+                a_color: Color::WHITE,
+                a_vt: vec2(x * 0.999, y / 2.0),
+            };
+            let y = self.camera.center.y - self.camera.fov;
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::TexturedPolygon::new(
+                    vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, y), p(0.0, y)],
+                    &self.assets.border,
+                ),
+            );
+        }
+
         ugli::draw(
             framebuffer,
             &self.assets.particle_program,
@@ -680,10 +741,7 @@ impl geng::State for Game {
                 );
             }
         }
-
         if let Some(position) = model.avalanche_position {
-            let c2 = Color::rgba(0.9, 0.9, 0.95, 0.0);
-            let c1 = Color::rgba(0.9, 0.9, 0.95, 0.9);
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
@@ -730,7 +788,9 @@ fn main() {
             {
                 let geng = geng.clone();
                 move |assets| {
-                    let assets = assets.expect("Failed to load assets");
+                    let mut assets = assets.expect("Failed to load assets");
+                    assets.border.set_filter(ugli::Filter::Nearest);
+                    assets.border.set_wrap_mode(ugli::WrapMode::Repeat);
                     Game::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },
