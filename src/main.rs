@@ -271,6 +271,7 @@ pub struct Game {
     next_particle: f32,
     trail_texture: (ugli::Texture, Quad<f32>),
     particles: ugli::VertexBuffer<Particle>,
+    show_player_names: bool,
     explosion_particles: ugli::VertexBuffer<Particle>,
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
     ride_sound_effect: geng::SoundEffect,
@@ -291,6 +292,7 @@ impl Game {
         Self {
             interpolated_players: default(),
             time: 0.0,
+            show_player_names: true,
             explosion_time: None,
             geng: geng.clone(),
             assets: assets.clone(),
@@ -560,6 +562,9 @@ impl geng::State for Game {
                     if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
                         self.model.send(Message::StartTheRace);
                     }
+                }
+                geng::Key::H => {
+                    self.show_player_names = !self.show_player_names;
                 }
                 geng::Key::K => {
                     self.players.get_mut(&self.player_id).unwrap().crashed = true;
@@ -1110,16 +1115,18 @@ impl geng::State for Game {
                 ),
             );
         }
-        for player in &self.interpolated_players {
-            self.assets.font.draw(
-                framebuffer,
-                &self.camera,
-                player.position + vec2(0.0, 1.0),
-                0.5,
-                &player.name,
-                0.5,
-                Color::WHITE,
-            );
+        if self.show_player_names {
+            for player in &self.interpolated_players {
+                self.assets.font.draw(
+                    framebuffer,
+                    &self.camera,
+                    player.position + vec2(0.0, 1.0),
+                    0.5,
+                    &player.name,
+                    0.5,
+                    Color::WHITE,
+                );
+            }
         }
         if let Some(pos) = model.avalanche_position {
             let pos = pos - self.camera.center.y - self.camera.fov / 2.0;
@@ -1147,21 +1154,23 @@ impl geng::State for Game {
             //     );
             // }
         } else if let Some((name, score)) = &model.winner {
-            self.assets.font.draw(
-                framebuffer,
-                &self.camera,
-                self.camera.center + vec2(0.0, 8.0),
-                1.0,
-                &format!("winner is {}", name),
-                0.5,
-                Color::WHITE,
-            );
+            if self.show_player_names {
+                self.assets.font.draw(
+                    framebuffer,
+                    &self.camera,
+                    self.camera.center + vec2(0.0, 8.0),
+                    1.0,
+                    &format!("winner is {}", name),
+                    0.5,
+                    Color::WHITE,
+                );
+            }
             self.assets.font.draw(
                 framebuffer,
                 &self.camera,
                 self.camera.center + vec2(0.0, 7.0),
                 1.0,
-                &format!("scored {}", (*score * 100.0) as i32),
+                &format!("winner scored {}", (*score * 100.0) as i32),
                 0.5,
                 Color::WHITE,
             );
