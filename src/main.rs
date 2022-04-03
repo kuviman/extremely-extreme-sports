@@ -172,6 +172,7 @@ impl simple_net::Model for Model {
 #[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
 pub struct Player {
     pub id: Id,
+    pub emote: Option<(f32, usize)>,
     #[diff = "eq"]
     pub name: String,
     pub position: Vec2<f32>,
@@ -305,6 +306,7 @@ impl Game {
             players: {
                 let mut result = Collection::new();
                 result.insert(Player {
+                    emote: None,
                     id: player_id,
                     name,
                     config,
@@ -498,6 +500,15 @@ impl Game {
             ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0)),
             Color::WHITE,
         );
+
+        if let Some((_, index)) = player.emote {
+            self.draw_texture(
+                framebuffer,
+                &self.assets.emotes[index],
+                Mat3::translate(player.position + vec2(0.0, 1.8)) * Mat3::scale_uniform(0.3),
+                Color::WHITE,
+            );
+        }
     }
     fn play_sound(&self, sound: &geng::Sound, pos: Vec2<f32>) {
         let mut effect = sound.effect();
@@ -516,6 +527,7 @@ impl Game {
             const EXPECTED_PING: f32 = 0.3;
             *i = Player {
                 id: player.id,
+                emote: player.emote,
                 name: player.name.clone(),
                 position: i.position + (player.position - i.position) / EXPECTED_PING * delta_time,
                 config: player.config.clone(),
@@ -555,6 +567,18 @@ impl geng::State for Game {
                 geng::Key::R => {
                     self.players.get_mut(&self.player_id).unwrap().respawn();
                 }
+                geng::Key::Num1 => {
+                    self.players.get_mut(&self.player_id).unwrap().emote = Some((0.0, 0));
+                }
+                geng::Key::Num2 => {
+                    self.players.get_mut(&self.player_id).unwrap().emote = Some((0.0, 1));
+                }
+                geng::Key::Num3 => {
+                    self.players.get_mut(&self.player_id).unwrap().emote = Some((0.0, 2));
+                }
+                geng::Key::Num4 => {
+                    self.players.get_mut(&self.player_id).unwrap().emote = Some((0.0, 3));
+                }
                 _ => {}
             },
             _ => {}
@@ -570,6 +594,16 @@ impl geng::State for Game {
             *time += delta_time;
             if *time > 1.0 {
                 self.explosion_time = None;
+            }
+        }
+
+        {
+            let me = self.players.get_mut(&self.player_id).unwrap();
+            if let Some((time, _)) = &mut me.emote {
+                *time += delta_time;
+                if *time > 1.0 {
+                    me.emote = None;
+                }
             }
         }
 
@@ -594,11 +628,11 @@ impl geng::State for Game {
         {
             let model = self.model.get();
 
-            let my_player = self.players.get(&self.player_id).unwrap();
+            let my_player = self.interpolated_players.get(&self.player_id).unwrap();
             let mut target_player = my_player;
             if !my_player.is_riding && model.avalanche_position.is_some() {
                 if let Some(player) = self
-                    .players
+                    .interpolated_players
                     .iter()
                     .min_by_key(|player| r32(player.position.y))
                 {
@@ -780,11 +814,14 @@ impl geng::State for Game {
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         let model = self.model.get();
-        let my_player = self.players.get(&self.player_id).unwrap();
+        let my_player = self
+            .interpolated_players
+            .get(&self.player_id)
+            .unwrap_or(self.players.get(&self.player_id).unwrap());
         let mut target_player = my_player;
         if !my_player.is_riding && model.avalanche_position.is_some() {
             if let Some(player) = self
-                .players
+                .interpolated_players
                 .iter()
                 .min_by_key(|player| r32(player.position.y))
             {
@@ -1203,6 +1240,9 @@ fn main() {
                     assets.avalanche_sound.looped = true;
                     assets.music.looped = true;
                     for t in &mut assets.player.equipment {
+                        t.set_filter(ugli::Filter::Nearest);
+                    }
+                    for t in &mut assets.emotes {
                         t.set_filter(ugli::Filter::Nearest);
                     }
                     Lobby::new(&geng, &Rc::new(assets), player_id, model)

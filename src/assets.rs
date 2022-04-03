@@ -103,6 +103,8 @@ pub struct Assets {
     pub font: Font,
     #[asset(range = "1..=3", path = "crash_sound*.wav")]
     pub crash_sounds: Vec<geng::Sound>,
+    #[asset(range = "1..=4", path = "emotes/*.png")]
+    pub emotes: Vec<ugli::Texture>,
     pub ride_sound: geng::Sound,
     pub boom: ugli::Texture,
     pub spawn: ugli::Texture,
