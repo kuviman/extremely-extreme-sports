@@ -175,6 +175,8 @@ pub struct Player {
     #[diff = "eq"]
     pub name: String,
     pub position: Vec2<f32>,
+    #[diff = "eq"]
+    pub config: PlayerConfig,
     pub radius: f32,
     pub rotation: f32,
     pub input: f32,
@@ -239,6 +241,7 @@ impl Player {
             is_riding: false,
             seen_no_avalanche: false,
             name: self.name.clone(),
+            config: self.config.clone(),
             ..*self
         };
     }
@@ -280,6 +283,7 @@ impl Game {
         assets: &Rc<Assets>,
         player_id: Id,
         name: String,
+        config: PlayerConfig,
         model: simple_net::Remote<Model>,
     ) -> Self {
         Self {
@@ -301,6 +305,7 @@ impl Game {
                 result.insert(Player {
                     id: player_id,
                     name,
+                    config,
                     crash_position: Vec2::ZERO,
                     is_riding: false,
                     seen_no_avalanche: false,
@@ -444,23 +449,20 @@ impl Game {
         );
     }
 
-    fn draw_player_trail(&self, framebuffer: &mut ugli::Framebuffer, player: &Player) {
-        if player.is_riding {
-            self.draw_texture(
-                framebuffer,
-                &self.assets.ski,
-                Mat3::translate(player.position) * Mat3::rotate(player.rotation),
-                Color::rgb(0.8, 0.8, 0.8),
-            );
-        }
-    }
-
     fn draw_player(&self, framebuffer: &mut ugli::Framebuffer, player: &Player) {
+        let equipment: &ugli::Texture = &self.assets.player.equipment[player.config.equipment];
         if !player.crashed && player.is_riding {
             self.draw_texture(
                 framebuffer,
-                &self.assets.ski,
+                equipment,
                 Mat3::translate(player.position) * Mat3::rotate(player.rotation),
+                Color::BLACK,
+            );
+        } else if !player.crashed {
+            self.draw_texture(
+                framebuffer,
+                equipment,
+                Mat3::translate(player.position + vec2(0.0, 1.0)),
                 Color::BLACK,
             );
         }
@@ -469,7 +471,7 @@ impl Game {
             let t = player.crash_timer.min(1.0);
             self.draw_texture(
                 framebuffer,
-                &self.assets.ski,
+                equipment,
                 Mat3::translate(
                     player.crash_position
                         + player.ski_velocity * t
@@ -480,7 +482,7 @@ impl Game {
         }
         self.draw_texture(
             framebuffer,
-            &self.assets.player,
+            &self.assets.player.assemble(&self.geng, &player.config),
             Mat3::translate(
                 player.position
                     + if player.is_riding {
@@ -1047,6 +1049,7 @@ impl geng::State for Game {
                 0.5,
                 &player.name,
                 0.5,
+                Color::WHITE,
             );
         }
         if let Some(pos) = model.avalanche_position {
@@ -1082,6 +1085,7 @@ impl geng::State for Game {
                 1.0,
                 &format!("winner is {}", name),
                 0.5,
+                Color::WHITE,
             );
             self.assets.font.draw(
                 framebuffer,
@@ -1090,6 +1094,7 @@ impl geng::State for Game {
                 1.0,
                 &format!("scored {}", (*score * 100.0) as i32),
                 0.5,
+                Color::WHITE,
             );
         }
         if target_player.is_riding {
@@ -1104,6 +1109,7 @@ impl geng::State for Game {
                 1.0,
                 &format!("score {}", (-target_player.position.y * 100.0) as i32),
                 0.5,
+                Color::WHITE,
             );
             // self.assets.font.draw(
             //     framebuffer,
@@ -1164,6 +1170,9 @@ fn main() {
                     assets.ride_sound.looped = true;
                     assets.avalanche_sound.looped = true;
                     assets.music.looped = true;
+                    for t in &mut assets.player.equipment {
+                        t.set_filter(ugli::Filter::Nearest);
+                    }
                     Lobby::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },

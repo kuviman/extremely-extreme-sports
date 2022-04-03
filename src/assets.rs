@@ -24,9 +24,69 @@ impl geng::LoadAsset for Texture {
 }
 
 #[derive(geng::Assets)]
+pub struct PlayerAssets {
+    #[asset(range = "1..=4", path = "coat/*.png")]
+    pub coat: Vec<ugli::Texture>,
+    #[asset(range = "1..=4", path = "hat/*.png")]
+    pub hat: Vec<ugli::Texture>,
+    #[asset(range = "1..=4", path = "pants/*.png")]
+    pub pants: Vec<ugli::Texture>,
+    #[asset(range = "1..=4", path = "face/*.png")]
+    pub face: Vec<ugli::Texture>,
+    #[asset(range = "1..=2", path = "equipment/*.png")]
+    pub equipment: Vec<ugli::Texture>,
+    pub body: ugli::Texture,
+}
+
+impl PlayerAssets {
+    pub fn assemble(&self, geng: &Geng, config: &PlayerConfig) -> ugli::Texture {
+        let mut result = ugli::Texture::new_uninitialized(geng.ugli(), self.coat[0].size());
+        result.set_filter(ugli::Filter::Nearest);
+        {
+            let mut framebuffer = ugli::Framebuffer::new_color(
+                geng.ugli(),
+                ugli::ColorAttachment::Texture(&mut result),
+            );
+            let framebuffer = &mut framebuffer;
+            ugli::clear(framebuffer, Some(Color::TRANSPARENT_WHITE), None);
+            let camera = geng::Camera2d {
+                center: Vec2::ZERO,
+                rotation: 0.0,
+                fov: 2.0,
+            };
+            geng.draw_2d(
+                framebuffer,
+                &camera,
+                &draw_2d::TexturedQuad::unit(&self.body),
+            );
+            geng.draw_2d(
+                framebuffer,
+                &camera,
+                &draw_2d::TexturedQuad::unit(&self.face[config.face]),
+            );
+            geng.draw_2d(
+                framebuffer,
+                &camera,
+                &draw_2d::TexturedQuad::unit(&self.hat[config.hat]),
+            );
+            geng.draw_2d(
+                framebuffer,
+                &camera,
+                &draw_2d::TexturedQuad::unit(&self.pants[config.pants]),
+            );
+            geng.draw_2d(
+                framebuffer,
+                &camera,
+                &draw_2d::TexturedQuad::unit(&self.coat[config.coat]),
+            );
+        }
+        result
+    }
+}
+
+#[derive(geng::Assets)]
 pub struct Assets {
-    pub player: Texture,
-    pub ski: Texture,
+    pub player: PlayerAssets,
     #[asset(load_with = "load_obstacles(&geng, &base_path)")]
     pub obstacles: Vec<ObstacleAssets>,
     pub texture_program: ugli::Program,

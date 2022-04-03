@@ -17,6 +17,7 @@ impl Font {
         size: f32,
         text: &str,
         align: f32,
+        color: Color<f32>,
     ) {
         if text.is_empty() {
             return;
@@ -39,33 +40,33 @@ impl Font {
                         pos.x += size;
                         vs.push(draw_2d::TexturedVertex {
                             a_pos: vec2(ps.x_min, ps.y_min),
-                            a_color: Color::WHITE,
+                            a_color: color,
                             a_vt: vec2(uv.x_min, uv.y_min),
                         });
                         vs.push(draw_2d::TexturedVertex {
                             a_pos: vec2(ps.x_max, ps.y_min),
-                            a_color: Color::WHITE,
+                            a_color: color,
                             a_vt: vec2(uv.x_max, uv.y_min),
                         });
                         vs.push(draw_2d::TexturedVertex {
                             a_pos: vec2(ps.x_max, ps.y_max),
-                            a_color: Color::WHITE,
+                            a_color: color,
                             a_vt: vec2(uv.x_max, uv.y_max),
                         });
 
                         vs.push(draw_2d::TexturedVertex {
                             a_pos: vec2(ps.x_min, ps.y_min),
-                            a_color: Color::WHITE,
+                            a_color: color,
                             a_vt: vec2(uv.x_min, uv.y_min),
                         });
                         vs.push(draw_2d::TexturedVertex {
                             a_pos: vec2(ps.x_max, ps.y_max),
-                            a_color: Color::WHITE,
+                            a_color: color,
                             a_vt: vec2(uv.x_max, uv.y_max),
                         });
                         vs.push(draw_2d::TexturedVertex {
                             a_pos: vec2(ps.x_min, ps.y_max),
-                            a_color: Color::WHITE,
+                            a_color: color,
                             a_vt: vec2(uv.x_min, uv.y_max),
                         });
                     }
