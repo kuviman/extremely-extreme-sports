@@ -683,7 +683,7 @@ impl geng::State for Game {
 
         if let Some(position) = model.avalanche_position {
             let c2 = Color::rgba(0.9, 0.9, 0.95, 0.0);
-            let c1 = Color::rgba(0.9, 0.9, 0.95, 1.0);
+            let c1 = Color::rgba(0.9, 0.9, 0.95, 0.9);
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
