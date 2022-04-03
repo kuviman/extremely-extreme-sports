@@ -16,6 +16,6 @@ void main() {
 uniform vec4 u_color;
 void main() {
     gl_FragColor = u_color;
-    gl_FragColor.w *= pow(1.0 - length(v_vt), 0.4);
+    gl_FragColor.w *= pow(max(0.0, 1.0 - length(v_vt)), 0.4);
 }
 #endif

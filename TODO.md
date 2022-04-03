@@ -1,4 +1,3 @@
-- Sounds
 - Customization screen
 - Reduce lag
 - Emotes
