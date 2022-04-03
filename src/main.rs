@@ -259,6 +259,7 @@ pub struct Particle {
 
 pub struct Game {
     time: f32,
+    volume: f64,
     explosion_time: Option<f32>,
     last_model_tick: u64,
     geng: Geng,
@@ -292,6 +293,7 @@ impl Game {
         Self {
             interpolated_players: default(),
             time: 0.0,
+            volume: 0.5,
             show_player_names: true,
             explosion_time: None,
             geng: geng.clone(),
@@ -514,7 +516,9 @@ impl Game {
     }
     fn play_sound(&self, sound: &geng::Sound, pos: Vec2<f32>) {
         let mut effect = sound.effect();
-        effect.set_volume((1.0 - ((pos - self.camera.center).len() / 10.0).sqr()).max(0.0) as f64);
+        effect.set_volume(
+            (1.0 - ((pos - self.camera.center).len() / 10.0).sqr()).max(0.0) as f64 * self.volume,
+        );
         effect.play()
     }
 
@@ -590,6 +594,14 @@ impl geng::State for Game {
         }
     }
     fn update(&mut self, delta_time: f64) {
+        if self.geng.window().is_key_pressed(geng::Key::PageUp) {
+            self.volume += delta_time;
+        }
+        if self.geng.window().is_key_pressed(geng::Key::PageDown) {
+            self.volume -= delta_time;
+        }
+        self.volume = self.volume.clamp(0.0, 1.0);
+
         let delta_time = delta_time as f32;
         self.time += delta_time;
 
@@ -656,7 +668,9 @@ impl geng::State for Game {
                     if player.id != self.player_id {
                         if self.players.get(&player.id).is_none() {
                             self.spawn_particles.push((0.0, player.position));
-                            self.assets.spawn_sound.play();
+                            let mut sfx = self.assets.spawn_sound.effect();
+                            sfx.set_volume(self.volume);
+                            sfx.play();
                         }
                         self.players.insert(player.clone());
                     }
@@ -664,7 +678,9 @@ impl geng::State for Game {
                 for player in &self.players {
                     if player.id != self.player_id && model.players.get(&player.id).is_none() {
                         self.spawn_particles.push((0.0, player.position));
-                        self.assets.spawn_sound.play();
+                        let mut sfx = self.assets.spawn_sound.effect();
+                        sfx.set_volume(self.volume);
+                        sfx.play();
                     }
                 }
                 self.players.retain(|player| {
@@ -688,7 +704,9 @@ impl geng::State for Game {
                 if !player.is_riding {
                     for _ in 0..100 {
                         self.explosion_time = Some(0.0);
-                        self.assets.boom_sound.play();
+                        let mut sfx = self.assets.boom_sound.effect();
+                        sfx.set_volume(self.volume);
+                        sfx.play();
                         break;
                         self.explosion_particles.push(Particle {
                             i_pos: vec2(0.0, 5.0),
@@ -1178,7 +1196,8 @@ impl geng::State for Game {
         if target_player.is_riding {
             self.ride_sound_effect.set_volume(
                 (target_player.velocity.len() / Player::MAX_SPEED * 0.05
-                    + target_player.ride_volume.min(1.0) * 0.1) as f64,
+                    + target_player.ride_volume.min(1.0) * 0.1) as f64
+                    * self.volume,
             );
             self.assets.font.draw(
                 framebuffer,
@@ -1203,10 +1222,15 @@ impl geng::State for Game {
         if let Some(pos) = model.avalanche_position {
             self.avalanche_sound_effect.set_volume(
                 (1.0 - ((pos - self.camera.center.y).abs() * 2.0 / self.camera.fov).powf(1.0))
-                    .clamp(0.0, 1.0) as f64,
+                    .clamp(0.0, 1.0) as f64
+                    * self.volume,
             );
         } else {
             self.avalanche_sound_effect.set_volume(0.0);
+        }
+
+        if let Some(music) = &mut self.music {
+            music.set_volume(self.volume);
         }
 
         if let Some(time) = self.explosion_time {
