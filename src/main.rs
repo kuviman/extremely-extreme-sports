@@ -35,7 +35,7 @@ impl Model {
     pub const AVALANCHE_MAX_SPEED: f32 = 11.0;
     pub const AVALANCHE_ACCELERATION: f32 =
         (Self::AVALANCHE_MAX_SPEED - Self::AVALANCHE_MIN_SPEED) / 60.0;
-    const AVALANCHE_START: f32 = 20.0;
+    const AVALANCHE_START: f32 = 30.0;
     const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
         Self {
@@ -184,6 +184,7 @@ pub struct Player {
     pub is_riding: bool,
     pub seen_no_avalanche: bool,
     pub crash_position: Vec2<f32>,
+    pub ride_volume: f32,
 }
 
 impl Player {
@@ -200,6 +201,7 @@ impl Player {
         self.velocity.x +=
             (target_speed - self.velocity.x).clamp_abs(Self::WALK_ACCELERATION * delta_time);
         self.position += self.velocity * delta_time;
+        self.ride_volume = 0.0;
     }
     pub fn update_riding(&mut self, delta_time: f32) {
         if !self.crashed {
@@ -210,11 +212,13 @@ impl Player {
                 .clamp_abs(Self::DOWNHILL_ACCELERATION * delta_time);
             let normal = vec2(1.0, 0.0).rotate(self.rotation);
             let force = -Vec2::dot(self.velocity, normal) * Self::FRICTION;
+            self.ride_volume = force.abs() / 10.0;
             self.velocity += normal * force * delta_time;
             self.ski_velocity = self.velocity;
             self.ski_rotation = self.rotation;
             self.crash_position = self.position;
         } else {
+            self.ride_volume = 0.0;
             self.crash_timer += delta_time;
             self.velocity -= self
                 .velocity
@@ -261,6 +265,8 @@ pub struct Game {
     particles: ugli::VertexBuffer<Particle>,
     explosion_particles: ugli::VertexBuffer<Particle>,
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
+    ride_sound_effect: geng::SoundEffect,
+    avalanche_sound_effect: geng::SoundEffect,
 }
 
 impl Game {
@@ -292,6 +298,7 @@ impl Game {
                     seen_no_avalanche: false,
                     ski_rotation: 0.0,
                     crash_timer: 0.0,
+                    ride_volume: 0.0,
                     position: Vec2::ZERO,
                     radius: 0.3,
                     rotation: 0.0,
@@ -301,6 +308,18 @@ impl Game {
                     ski_velocity: Vec2::ZERO,
                 });
                 result
+            },
+            ride_sound_effect: {
+                let mut effect = assets.ride_sound.effect();
+                effect.set_volume(0.0);
+                effect.play();
+                effect
+            },
+            avalanche_sound_effect: {
+                let mut effect = assets.avalanche_sound.effect();
+                effect.set_volume(0.0);
+                effect.play();
+                effect
             },
             trail_texture: (
                 ugli::Texture::new_with(geng.ugli(), vec2(1, 1), |_| Color::TRANSPARENT_WHITE),
@@ -1017,6 +1036,10 @@ impl geng::State for Game {
             );
         }
         if target_player.is_riding {
+            self.ride_sound_effect.set_volume(
+                (target_player.velocity.len() / Player::MAX_SPEED * 0.05
+                    + target_player.ride_volume.min(1.0) * 0.1) as f64,
+            );
             self.assets.font.draw(
                 framebuffer,
                 &self.camera,
@@ -1033,6 +1056,16 @@ impl geng::State for Game {
             //     &format!("speed {}m per second", (-target_player.velocity.y) as i32),
             //     0.5,
             // );
+        } else {
+            self.ride_sound_effect.set_volume(0.0);
+        }
+        if let Some(pos) = model.avalanche_position {
+            self.avalanche_sound_effect.set_volume(
+                (1.0 - ((pos - self.camera.center.y).abs() * 2.0 / self.camera.fov).powf(1.0))
+                    .clamp(0.0, 1.0) as f64,
+            );
+        } else {
+            self.avalanche_sound_effect.set_volume(0.0);
         }
     }
 }
@@ -1055,6 +1088,8 @@ fn main() {
                     assets.detonate_text.set_filter(ugli::Filter::Nearest);
                     assets.spectating_text.set_filter(ugli::Filter::Nearest);
                     assets.ava_warning.set_filter(ugli::Filter::Nearest);
+                    assets.ride_sound.looped = true;
+                    assets.avalanche_sound.looped = true;
                     Game::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },

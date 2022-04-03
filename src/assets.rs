@@ -43,6 +43,8 @@ pub struct Assets {
     pub font: Font,
     #[asset(range = "1..=3", path = "crash_sound*.wav")]
     pub crash_sounds: Vec<geng::Sound>,
+    pub ride_sound: geng::Sound,
+    pub avalanche_sound: geng::Sound,
 }
 
 async fn load_obstacles(
