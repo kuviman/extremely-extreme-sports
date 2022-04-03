@@ -217,7 +217,11 @@ impl geng::State for Lobby {
                                 &self.geng,
                                 &self.assets,
                                 self.player_id,
-                                self.name.clone(),
+                                if self.name.is_empty() {
+                                    "unnamed".to_owned()
+                                } else {
+                                    self.name.clone()
+                                },
                                 self.config.clone(),
                                 self.model.take().unwrap(),
                             ))));
