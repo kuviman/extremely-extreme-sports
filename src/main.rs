@@ -204,14 +204,27 @@ impl Player {
     }
 }
 
+#[derive(ugli::Vertex)]
+pub struct Particle {
+    i_pos: Vec2<f32>,
+    i_vel: Vec2<f32>,
+    i_time: f32,
+    i_size: f32,
+    i_opacity: f32,
+}
+
 pub struct Game {
+    time: f32,
     geng: Geng,
     assets: Rc<Assets>,
     player_id: Id,
     camera: geng::Camera2d,
     model: simple_net::Remote<Model>,
     player: Player,
+    next_particle: f32,
     trail_texture: (ugli::Texture, Quad<f32>),
+    particles: ugli::VertexBuffer<Particle>,
+    quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
 }
 
 impl Game {
@@ -222,6 +235,7 @@ impl Game {
         model: simple_net::Remote<Model>,
     ) -> Self {
         Self {
+            time: 0.0,
             geng: geng.clone(),
             assets: assets.clone(),
             camera: geng::Camera2d {
@@ -250,23 +264,9 @@ impl Game {
                 ugli::Texture::new_with(geng.ugli(), vec2(1, 1), |_| Color::TRANSPARENT_WHITE),
                 Quad::unit(),
             ),
-        }
-    }
-
-    fn draw_texture(
-        &self,
-        framebuffer: &mut ugli::Framebuffer,
-        texture: &ugli::Texture,
-        transform: Mat3<f32>,
-        color: Color<f32>,
-    ) {
-        let framebuffer_size = framebuffer.size();
-        ugli::draw(
-            framebuffer,
-            &self.assets.texture_program,
-            ugli::DrawMode::TriangleFan,
-            &ugli::VertexBuffer::new_dynamic(
-                self.geng.ugli(),
+            particles: ugli::VertexBuffer::new_dynamic(geng.ugli(), vec![]),
+            quad_geometry: ugli::VertexBuffer::new_static(
+                geng.ugli(),
                 vec![
                     draw_2d::Vertex {
                         a_pos: vec2(-1.0, -1.0),
@@ -282,6 +282,23 @@ impl Game {
                     },
                 ],
             ),
+            next_particle: 0.0,
+        }
+    }
+
+    fn draw_texture(
+        &self,
+        framebuffer: &mut ugli::Framebuffer,
+        texture: &ugli::Texture,
+        transform: Mat3<f32>,
+        color: Color<f32>,
+    ) {
+        let framebuffer_size = framebuffer.size();
+        ugli::draw(
+            framebuffer,
+            &self.assets.texture_program,
+            ugli::DrawMode::TriangleFan,
+            &self.quad_geometry,
             (
                 ugli::uniforms! {
                     u_texture: texture,
@@ -434,6 +451,7 @@ impl geng::State for Game {
     }
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
+        self.time += delta_time;
         self.player.input = 0.0;
         if self.geng.window().is_key_pressed(geng::Key::A)
             || self.geng.window().is_key_pressed(geng::Key::Left)
@@ -476,6 +494,44 @@ impl geng::State for Game {
             if self.player.crash_timer > 5.0 {
                 self.player.respawn();
             }
+            self.next_particle -= delta_time * self.player.velocity.len() / Player::MAX_SPEED;
+            while self.next_particle < 0.0 {
+                self.next_particle += 1.0 / 100.0;
+                let mut particles = Vec::new();
+                for player in self.iter_players() {
+                    particles.push(Particle {
+                        i_pos: player.position,
+                        // i_vel: vec2(
+                        //     global_rng().gen_range(-1.0..=1.0),
+                        //     global_rng().gen_range(-1.0..=1.0),
+                        // ) / 3.0,
+                        i_vel: Vec2::ZERO,
+                        i_time: self.time,
+                        i_size: 0.2,
+                        i_opacity: 1.0,
+                    });
+                    let normal = vec2(1.0, 0.0).rotate(player.rotation);
+                    let force = Vec2::dot(player.velocity, normal).abs();
+                    particles.push(Particle {
+                        i_pos: player.position,
+                        i_vel: vec2(
+                            global_rng().gen_range(-1.0..=1.0),
+                            global_rng().gen_range(-1.0..=1.0),
+                        ) / 2.0
+                            + player.velocity,
+                        i_time: self.time,
+                        i_size: 0.4,
+                        i_opacity: 0.5 * force / Player::MAX_SPEED,
+                    });
+                }
+                self.particles.extend(particles);
+            }
+        }
+        self.particles
+            .retain(|particle| particle.i_time > self.time - 1.0);
+        for particle in &mut *self.particles {
+            particle.i_pos += particle.i_vel * delta_time;
+            particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
         }
         self.model.send(Message::UpdatePlayer(self.player.clone()));
 
@@ -487,28 +543,28 @@ impl geng::State for Game {
         let model = self.model.get();
         self.camera.center = self.player.position;
 
-        let mut new_trail_texture =
-            ugli::Texture::new_uninitialized(self.geng.ugli(), framebuffer.size());
-        {
-            new_trail_texture.set_filter(ugli::Filter::Nearest);
-            let mut framebuffer = ugli::Framebuffer::new_color(
-                self.geng.ugli(),
-                ugli::ColorAttachment::Texture(&mut new_trail_texture),
-            );
-            let framebuffer = &mut framebuffer;
-            ugli::clear(framebuffer, Some(Color::TRANSPARENT_WHITE), None);
-            self.draw_texture(
-                framebuffer,
-                &self.trail_texture.0,
-                self.trail_texture.1.transform,
-                Color::WHITE,
-            );
-            for player in self.iter_players() {
-                self.draw_player_trail(framebuffer, &player);
-            }
-        }
+        // let mut new_trail_texture =
+        //     ugli::Texture::new_uninitialized(self.geng.ugli(), framebuffer.size());
+        // {
+        //     new_trail_texture.set_filter(ugli::Filter::Nearest);
+        //     let mut framebuffer = ugli::Framebuffer::new_color(
+        //         self.geng.ugli(),
+        //         ugli::ColorAttachment::Texture(&mut new_trail_texture),
+        //     );
+        //     let framebuffer = &mut framebuffer;
+        //     ugli::clear(framebuffer, Some(Color::TRANSPARENT_WHITE), None);
+        //     self.draw_texture(
+        //         framebuffer,
+        //         &self.trail_texture.0,
+        //         self.trail_texture.1.transform,
+        //         Color::WHITE,
+        //     );
+        //     for player in self.iter_players() {
+        //         self.draw_player_trail(framebuffer, &player);
+        //     }
+        // }
         let view_area = self.camera.view_area(framebuffer.size().map(|x| x as f32));
-        self.trail_texture = (new_trail_texture, view_area);
+        // self.trail_texture = (new_trail_texture, view_area);
 
         let in_view = |position: Vec2<f32>| -> bool {
             let position_in_view = view_area.transform.inverse() * position.extend(1.0);
@@ -523,12 +579,33 @@ impl geng::State for Game {
 
         ugli::clear(framebuffer, Some(Color::WHITE), None);
 
-        self.draw_texture(
+        let framebuffer_size = framebuffer.size();
+
+        ugli::draw(
             framebuffer,
-            &self.trail_texture.0,
-            self.trail_texture.1.transform,
-            Color::WHITE,
+            &self.assets.particle_program,
+            ugli::DrawMode::TriangleFan,
+            ugli::instanced(&self.quad_geometry, &self.particles),
+            (
+                ugli::uniforms! {
+                    u_time: self.time,
+                    u_texture: &self.assets.particle,
+                    u_color: Color::<f32>::BLACK,
+                },
+                geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
+            ),
+            &ugli::DrawParameters {
+                blend_mode: Some(default()),
+                ..default()
+            },
         );
+
+        // self.draw_texture(
+        //     framebuffer,
+        //     &self.trail_texture.0,
+        //     self.trail_texture.1.transform,
+        //     Color::WHITE,
+        // );
 
         for player in self.iter_players() {
             self.draw_shadow(

@@ -31,6 +31,8 @@ pub struct Assets {
     pub obstacles: Vec<ObstacleAssets>,
     pub texture_program: ugli::Program,
     pub shadow: ugli::Program,
+    pub particle: ugli::Texture,
+    pub particle_program: ugli::Program,
 }
 
 async fn load_obstacles(
