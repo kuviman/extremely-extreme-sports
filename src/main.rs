@@ -17,6 +17,7 @@ pub struct Obstacle {
 
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
 pub struct Model {
+    tick: u64,
     next_id: Id,
     avalanche_position: Option<f32>,
     players: Collection<Player>,
@@ -29,6 +30,7 @@ impl Model {
     const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
         Self {
+            tick: 0,
             next_id: 0,
             avalanche_position: None,
             players: default(),
@@ -124,6 +126,7 @@ impl simple_net::Model for Model {
 
     fn tick(&mut self, events: &mut Vec<Event>) {
         let delta_time = 1.0 / TICKS_PER_SECOND;
+        self.tick += 1;
         if let Some(position) = &mut self.avalanche_position {
             *position -= Self::AVALANCHE_SPEED * delta_time;
             if *position < Self::AVALANCHE_START - Self::AVALANCHE_SPEED * 10.0 {
@@ -215,12 +218,13 @@ pub struct Particle {
 
 pub struct Game {
     time: f32,
+    last_model_tick: u64,
     geng: Geng,
     assets: Rc<Assets>,
     player_id: Id,
     camera: geng::Camera2d,
     model: simple_net::Remote<Model>,
-    player: Player,
+    players: Collection<Player>,
     next_particle: f32,
     trail_texture: (ugli::Texture, Quad<f32>),
     particles: ugli::VertexBuffer<Particle>,
@@ -245,20 +249,25 @@ impl Game {
             },
             model,
             player_id,
-            player: Player {
-                id: player_id,
-                crash_position: Vec2::ZERO,
-                is_riding: false,
-                seen_no_avalanche: false,
-                ski_rotation: 0.0,
-                crash_timer: 0.0,
-                position: Vec2::ZERO,
-                radius: 0.3,
-                rotation: 0.0,
-                input: 0.0,
-                velocity: Vec2::ZERO,
-                crashed: false,
-                ski_velocity: Vec2::ZERO,
+            last_model_tick: u64::MAX,
+            players: {
+                let mut result = Collection::new();
+                result.insert(Player {
+                    id: player_id,
+                    crash_position: Vec2::ZERO,
+                    is_riding: false,
+                    seen_no_avalanche: false,
+                    ski_rotation: 0.0,
+                    crash_timer: 0.0,
+                    position: Vec2::ZERO,
+                    radius: 0.3,
+                    rotation: 0.0,
+                    input: 0.0,
+                    velocity: Vec2::ZERO,
+                    crashed: false,
+                    ski_velocity: Vec2::ZERO,
+                });
+                result
             },
             trail_texture: (
                 ugli::Texture::new_with(geng.ugli(), vec2(1, 1), |_| Color::TRANSPARENT_WHITE),
@@ -415,20 +424,6 @@ impl Game {
             Color::WHITE,
         );
     }
-
-    fn iter_players(&self) -> impl Iterator<Item = Player> {
-        std::iter::once(&self.player)
-            .chain(
-                self.model
-                    .get()
-                    .players
-                    .iter()
-                    .filter(move |player| player.id != self.player.id),
-            )
-            .cloned()
-            .collect::<Vec<_>>()
-            .into_iter()
-    }
 }
 
 impl geng::State for Game {
@@ -439,10 +434,10 @@ impl geng::State for Game {
                     self.model.send(Message::StartTheRace);
                 }
                 geng::Key::K => {
-                    self.player.crashed = true;
+                    self.players.get_mut(&self.player_id).unwrap().crashed = true;
                 }
                 geng::Key::R => {
-                    self.player.respawn();
+                    self.players.get_mut(&self.player_id).unwrap().respawn();
                 }
                 _ => {}
             },
@@ -452,53 +447,75 @@ impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
         self.time += delta_time;
-        self.player.input = 0.0;
+        self.players.get_mut(&self.player_id).unwrap().input = 0.0;
         if self.geng.window().is_key_pressed(geng::Key::A)
             || self.geng.window().is_key_pressed(geng::Key::Left)
         {
-            self.player.input -= 1.0;
+            self.players.get_mut(&self.player_id).unwrap().input -= 1.0;
         }
         if self.geng.window().is_key_pressed(geng::Key::D)
             || self.geng.window().is_key_pressed(geng::Key::Right)
         {
-            self.player.input += 1.0;
+            self.players.get_mut(&self.player_id).unwrap().input += 1.0;
         }
         {
             let model = self.model.get();
+            if model.tick != self.last_model_tick {
+                self.last_model_tick = model.tick;
+                for player in &model.players {
+                    if player.id != self.player_id {
+                        self.players.insert(player.clone());
+                    }
+                }
+                self.players.retain(|player| {
+                    model.players.get(&player.id).is_some() || player.id == self.player_id
+                });
+            }
             if model.avalanche_position.is_none() {
-                self.player.seen_no_avalanche = true;
+                self.players
+                    .get_mut(&self.player_id)
+                    .unwrap()
+                    .seen_no_avalanche = true;
             }
-            if self.player.seen_no_avalanche && model.avalanche_position.is_some() {
-                self.player.is_riding = true;
+            if self
+                .players
+                .get_mut(&self.player_id)
+                .unwrap()
+                .seen_no_avalanche
+                && model.avalanche_position.is_some()
+            {
+                self.players.get_mut(&self.player_id).unwrap().is_riding = true;
             }
-            if !self.player.is_riding {
-                self.player.update_walk(delta_time);
-            } else {
-                self.player.update_riding(delta_time);
-                for obstacle in &model.obstacles {
-                    let delta_pos = self.player.position - obstacle.position;
-                    let peneration = self.player.radius + obstacle.radius - delta_pos.len();
-                    if peneration > 0.0 {
-                        let normal = delta_pos.normalize_or_zero();
-                        self.player.position += normal * peneration;
-                        self.player.velocity -= normal * Vec2::dot(self.player.velocity, normal);
-                        self.player.crashed = true;
+            if self.players.get_mut(&self.player_id).unwrap().crash_timer > 5.0 {
+                self.players.get_mut(&self.player_id).unwrap().respawn();
+            }
+            for player in &mut self.players {
+                if !player.is_riding {
+                    player.update_walk(delta_time);
+                } else {
+                    player.update_riding(delta_time);
+                    for obstacle in &model.obstacles {
+                        let delta_pos = player.position - obstacle.position;
+                        let peneration = player.radius + obstacle.radius - delta_pos.len();
+                        if peneration > 0.0 {
+                            let normal = delta_pos.normalize_or_zero();
+                            player.position += normal * peneration;
+                            player.velocity -= normal * Vec2::dot(player.velocity, normal);
+                            player.crashed = true;
+                        }
+                    }
+                    if let Some(position) = model.avalanche_position {
+                        if player.position.y > position {
+                            player.crashed = true;
+                        }
                     }
                 }
-                if let Some(position) = model.avalanche_position {
-                    if self.player.position.y > position {
-                        self.player.crashed = true;
-                    }
-                }
             }
-            if self.player.crash_timer > 5.0 {
-                self.player.respawn();
-            }
-            self.next_particle -= delta_time * self.player.velocity.len() / Player::MAX_SPEED;
+            self.next_particle -= delta_time;
             while self.next_particle < 0.0 {
                 self.next_particle += 1.0 / 100.0;
                 let mut particles = Vec::new();
-                for player in self.iter_players() {
+                for player in &self.players {
                     particles.push(Particle {
                         i_pos: player.position,
                         // i_vel: vec2(
@@ -533,7 +550,9 @@ impl geng::State for Game {
             particle.i_pos += particle.i_vel * delta_time;
             particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
         }
-        self.model.send(Message::UpdatePlayer(self.player.clone()));
+        self.model.send(Message::UpdatePlayer(
+            self.players.get(&self.player_id).unwrap().clone(),
+        ));
 
         for event in self.model.update() {
             // TODO handle
@@ -541,7 +560,7 @@ impl geng::State for Game {
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         let model = self.model.get();
-        self.camera.center = self.player.position;
+        self.camera.center = self.players.get(&self.player_id).unwrap().position;
 
         // let mut new_trail_texture =
         //     ugli::Texture::new_uninitialized(self.geng.ugli(), framebuffer.size());
@@ -607,14 +626,14 @@ impl geng::State for Game {
         //     Color::WHITE,
         // );
 
-        for player in self.iter_players() {
+        for player in &self.players {
             self.draw_shadow(
                 framebuffer,
                 Mat3::translate(player.position) * Mat3::scale_uniform(player.radius),
                 Color::rgba(0.5, 0.5, 0.5, 0.5),
             );
         }
-        if self.player.is_riding {
+        if self.players.get(&self.player_id).unwrap().is_riding {
             for obstacle in &model.obstacles {
                 if !in_view(obstacle.position) {
                     continue;
@@ -627,11 +646,11 @@ impl geng::State for Game {
             }
         }
 
-        for player in self.iter_players() {
-            self.draw_player(framebuffer, &player);
+        for player in &self.players {
+            self.draw_player(framebuffer, player);
         }
 
-        if self.player.is_riding {
+        if self.players.get(&self.player_id).unwrap().is_riding {
             for obstacle in &model.obstacles {
                 if !in_view(obstacle.position) {
                     continue;
