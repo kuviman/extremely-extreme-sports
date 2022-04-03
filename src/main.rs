@@ -25,7 +25,7 @@ pub struct Model {
 
 impl Model {
     pub const AVALANCHE_SPEED: f32 = 7.0;
-    const AVALANCHE_START: f32 = 100.0;
+    const AVALANCHE_START: f32 = 20.0;
     const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
         Self {
@@ -170,7 +170,7 @@ impl Player {
     }
     pub fn update_riding(&mut self, delta_time: f32) {
         if !self.crashed {
-            let target_rotation = (-self.input * f32::PI).clamp_abs(Self::ROTATION_LIMIT);
+            let target_rotation = (self.input * f32::PI).clamp_abs(Self::ROTATION_LIMIT);
             self.rotation +=
                 (target_rotation - self.rotation).clamp_abs(Self::ROTATION_SPEED * delta_time);
             self.velocity.y += (-Self::MAX_SPEED - self.velocity.y)
@@ -435,10 +435,14 @@ impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
         self.player.input = 0.0;
-        if self.geng.window().is_key_pressed(geng::Key::A) {
+        if self.geng.window().is_key_pressed(geng::Key::A)
+            || self.geng.window().is_key_pressed(geng::Key::Left)
+        {
             self.player.input -= 1.0;
         }
-        if self.geng.window().is_key_pressed(geng::Key::D) {
+        if self.geng.window().is_key_pressed(geng::Key::D)
+            || self.geng.window().is_key_pressed(geng::Key::Right)
+        {
             self.player.input += 1.0;
         }
         {
@@ -519,11 +523,11 @@ impl geng::State for Game {
 
         ugli::clear(framebuffer, Some(Color::WHITE), None);
 
-        self.geng.draw_2d(
+        self.draw_texture(
             framebuffer,
-            &self.camera,
-            &draw_2d::TexturedQuad::unit(&self.trail_texture.0)
-                .transform(self.trail_texture.1.transform),
+            &self.trail_texture.0,
+            self.trail_texture.1.transform,
+            Color::WHITE,
         );
 
         for player in self.iter_players() {
