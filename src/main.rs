@@ -163,7 +163,7 @@ impl Player {
     const ROTATION_SPEED: f32 = 2.0 * f32::PI;
     const ROTATION_LIMIT: f32 = f32::PI / 3.0;
     const MAX_SPEED: f32 = 10.0;
-    const MAX_WALK_SPEED: f32 = 1.0;
+    const MAX_WALK_SPEED: f32 = 3.0;
     const FRICTION: f32 = 5.0;
     const DOWNHILL_ACCELERATION: f32 = 5.0;
     const WALK_ACCELERATION: f32 = 10.0;
@@ -231,6 +231,7 @@ pub struct Game {
     next_particle: f32,
     trail_texture: (ugli::Texture, Quad<f32>),
     particles: ugli::VertexBuffer<Particle>,
+    explosion_particles: ugli::VertexBuffer<Particle>,
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
 }
 
@@ -277,6 +278,7 @@ impl Game {
                 Quad::unit(),
             ),
             particles: ugli::VertexBuffer::new_dynamic(geng.ugli(), vec![]),
+            explosion_particles: ugli::VertexBuffer::new_dynamic(geng.ugli(), vec![]),
             quad_geometry: ugli::VertexBuffer::new_static(
                 geng.ugli(),
                 vec![
@@ -434,7 +436,10 @@ impl geng::State for Game {
         match event {
             geng::Event::KeyDown { key } => match key {
                 geng::Key::Space => {
-                    self.model.send(Message::StartTheRace);
+                    let my_player = self.players.get(&self.player_id).unwrap();
+                    if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
+                        self.model.send(Message::StartTheRace);
+                    }
                 }
                 geng::Key::K => {
                     self.players.get_mut(&self.player_id).unwrap().crashed = true;
@@ -487,7 +492,21 @@ impl geng::State for Game {
                 .seen_no_avalanche
                 && model.avalanche_position.is_some()
             {
-                self.players.get_mut(&self.player_id).unwrap().is_riding = true;
+                let player = self.players.get_mut(&self.player_id).unwrap();
+                if !player.is_riding {
+                    for _ in 0..100 {
+                        self.explosion_particles.push(Particle {
+                            i_pos: vec2(0.0, 5.0),
+                            i_vel: vec2(global_rng().gen_range(0.0f32..=1.0).powf(0.2), 0.0)
+                                .rotate(global_rng().gen_range(-f32::PI..=f32::PI))
+                                * 5.0,
+                            i_time: self.time,
+                            i_size: 0.4,
+                            i_opacity: 0.3,
+                        })
+                    }
+                    player.is_riding = true;
+                }
             }
             if self.players.get_mut(&self.player_id).unwrap().crash_timer > 5.0 {
                 self.players.get_mut(&self.player_id).unwrap().respawn();
@@ -574,6 +593,12 @@ impl geng::State for Game {
             particle.i_pos += particle.i_vel * delta_time;
             particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
         }
+        self.explosion_particles
+            .retain(|particle| particle.i_time > self.time - 1.0);
+        for particle in &mut *self.explosion_particles {
+            particle.i_pos += particle.i_vel * delta_time;
+            particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
+        }
         self.model.send(Message::UpdatePlayer(
             self.players.get(&self.player_id).unwrap().clone(),
         ));
@@ -584,7 +609,18 @@ impl geng::State for Game {
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         let model = self.model.get();
-        self.camera.center = self.players.get(&self.player_id).unwrap().position;
+        let my_player = self.players.get(&self.player_id).unwrap();
+        let mut target_center = my_player.position;
+        if !my_player.is_riding && model.avalanche_position.is_some() {
+            if let Some(player) = self
+                .players
+                .iter()
+                .min_by_key(|player| r32(player.position.y))
+            {
+                target_center = player.position;
+            }
+        }
+        self.camera.center = target_center;
 
         // let mut new_trail_texture =
         //     ugli::Texture::new_uninitialized(self.geng.ugli(), framebuffer.size());
@@ -621,6 +657,57 @@ impl geng::State for Game {
         };
 
         ugli::clear(framebuffer, Some(Color::WHITE), None);
+        self.geng.draw_2d(
+            framebuffer,
+            &self.camera,
+            &draw_2d::Quad::new(
+                AABB::<f32>::point(Vec2::ZERO)
+                    .extend_left(TRACK_WIDTH * 2.0)
+                    .extend_right(TRACK_WIDTH * 2.0)
+                    .extend_up(100.0),
+                Color::rgb(145.0 / 255.0, 249.0 / 255.0, 1.0),
+            ),
+        );
+        self.geng.draw_2d(
+            framebuffer,
+            &self.camera,
+            &draw_2d::TexturedQuad::new(
+                AABB::<f32>::point(Vec2::ZERO)
+                    .extend_symmetric(self.assets.background.size().map(|x| x as f32) * 0.05),
+                &self.assets.background,
+            ),
+        );
+        {
+            let texture = if model.avalanche_position.is_none() {
+                &self.assets.detonator
+            } else {
+                &self.assets.detonator2
+            };
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::TexturedQuad::new(
+                    AABB::<f32>::point(Vec2::ZERO)
+                        .extend_positive(texture.size().map(|x| x as f32) * 0.05),
+                    texture,
+                ),
+            );
+        }
+        if model.avalanche_position.is_none()
+            && my_player.position.x >= 0.0
+            && my_player.position.x < 1.0
+        {
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::Text::unit(
+                    self.geng.default_font().clone(),
+                    "Press Space to detonate",
+                    Color::BLACK,
+                )
+                .translate(vec2(0.0, 4.0)),
+            );
+        }
 
         let framebuffer_size = framebuffer.size();
 
@@ -687,7 +774,26 @@ impl geng::State for Game {
                 ugli::uniforms! {
                     u_time: self.time,
                     u_texture: &self.assets.particle,
-                    u_color: Color::<f32>::BLACK,
+                    u_color: Color::rgba(0.8, 0.8, 0.85, 0.7),
+                },
+                geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
+            ),
+            &ugli::DrawParameters {
+                blend_mode: Some(default()),
+                ..default()
+            },
+        );
+
+        ugli::draw(
+            framebuffer,
+            &self.assets.particle_program,
+            ugli::DrawMode::TriangleFan,
+            ugli::instanced(&self.quad_geometry, &self.explosion_particles),
+            (
+                ugli::uniforms! {
+                    u_time: self.time,
+                    u_texture: &self.assets.particle,
+                    u_color: Color::rgb(1.0, 0.5, 0.0),
                 },
                 geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
             ),
@@ -711,7 +817,7 @@ impl geng::State for Game {
                 Color::rgba(0.5, 0.5, 0.5, 0.5),
             );
         }
-        if self.players.get(&self.player_id).unwrap().is_riding {
+        if true || self.players.get(&self.player_id).unwrap().is_riding {
             for obstacle in &model.obstacles {
                 if !in_view(obstacle.position) {
                     continue;
@@ -728,7 +834,7 @@ impl geng::State for Game {
             self.draw_player(framebuffer, player);
         }
 
-        if self.players.get(&self.player_id).unwrap().is_riding {
+        if true || self.players.get(&self.player_id).unwrap().is_riding {
             for obstacle in &model.obstacles {
                 if !in_view(obstacle.position) {
                     continue;
@@ -776,6 +882,14 @@ impl geng::State for Game {
                 ),
             );
         }
+        if !my_player.is_riding && model.avalanche_position.is_some() {
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::Text::unit(self.geng.default_font().clone(), "SPECTATING", Color::BLACK)
+                    .translate(self.camera.center + vec2(0.0, 4.0)),
+            );
+        }
     }
 }
 
@@ -791,6 +905,9 @@ fn main() {
                     let mut assets = assets.expect("Failed to load assets");
                     assets.border.set_filter(ugli::Filter::Nearest);
                     assets.border.set_wrap_mode(ugli::WrapMode::Repeat);
+                    assets.background.set_filter(ugli::Filter::Nearest);
+                    assets.detonator.set_filter(ugli::Filter::Nearest);
+                    assets.detonator2.set_filter(ugli::Filter::Nearest);
                     Game::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },
