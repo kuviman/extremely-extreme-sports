@@ -44,6 +44,7 @@ pub enum Message {
     UpdatePlayer(Player),
     StartTheRace,
 }
+const TRACK_WIDTH: f32 = 20.0;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Event {}
@@ -79,7 +80,6 @@ impl simple_net::Model for Model {
                     self.avalanche_position = Some(Self::AVALANCHE_START);
                     const TRACK_LEN: f32 = 1000.0;
                     const OBSTACLES_DENSITY: f32 = 0.1;
-                    const TRACK_WIDTH: f32 = 20.0;
                     let list: Vec<String> = serde_json::from_reader(
                         std::fs::File::open(static_path().join("obstacles.json")).unwrap(),
                     )
@@ -542,6 +542,23 @@ impl geng::State for Game {
                     });
                 }
                 self.particles.extend(particles);
+                if let Some(pos) = model.avalanche_position {
+                    for _ in 0..10 {
+                        self.particles.push(Particle {
+                            i_pos: vec2(
+                                global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH),
+                                pos + global_rng().gen_range(-3.0..=0.0),
+                            ),
+                            i_vel: vec2(
+                                global_rng().gen_range(-1.0..=1.0),
+                                global_rng().gen_range(-1.0..=1.0),
+                            ),
+                            i_time: self.time,
+                            i_size: 0.4,
+                            i_opacity: 0.5,
+                        });
+                    }
+                }
             }
         }
         self.particles
@@ -665,13 +682,40 @@ impl geng::State for Game {
         }
 
         if let Some(position) = model.avalanche_position {
+            let c2 = Color::rgba(0.9, 0.9, 0.95, 0.0);
+            let c1 = Color::rgba(0.9, 0.9, 0.95, 1.0);
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::Quad::unit(Color::rgba(0.5, 0.5, 0.5, 0.5))
-                    .translate(vec2(0.0, 1.0))
-                    .scale(vec2(1000.0, 10.0))
-                    .translate(vec2(0.0, position)),
+                &draw_2d::Polygon::new_gradient(vec![
+                    draw_2d::ColoredVertex {
+                        a_pos: vec2(-TRACK_WIDTH * 2.0, position - 3.0),
+                        a_color: c2,
+                    },
+                    draw_2d::ColoredVertex {
+                        a_pos: vec2(-TRACK_WIDTH * 2.0, position),
+                        a_color: c1,
+                    },
+                    draw_2d::ColoredVertex {
+                        a_pos: vec2(TRACK_WIDTH * 2.0, position),
+                        a_color: c1,
+                    },
+                    draw_2d::ColoredVertex {
+                        a_pos: vec2(TRACK_WIDTH * 2.0, position - 3.0),
+                        a_color: c2,
+                    },
+                ]),
+            );
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::Quad::new(
+                    AABB::point(vec2(0.0, position))
+                        .extend_left(TRACK_WIDTH * 2.0)
+                        .extend_right(TRACK_WIDTH * 2.0)
+                        .extend_up(100.0),
+                    c1,
+                ),
             );
         }
     }
