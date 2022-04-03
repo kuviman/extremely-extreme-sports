@@ -266,6 +266,7 @@ pub struct Game {
     camera: geng::Camera2d,
     model: simple_net::Remote<Model>,
     players: Collection<Player>,
+    interpolated_players: Collection<Player>,
     next_particle: f32,
     trail_texture: (ugli::Texture, Quad<f32>),
     particles: ugli::VertexBuffer<Particle>,
@@ -287,6 +288,7 @@ impl Game {
         model: simple_net::Remote<Model>,
     ) -> Self {
         Self {
+            interpolated_players: default(),
             time: 0.0,
             explosion_time: None,
             geng: geng.clone(),
@@ -502,6 +504,36 @@ impl Game {
         effect.set_volume((1.0 - ((pos - self.camera.center).len() / 10.0).sqr()).max(0.0) as f64);
         effect.play()
     }
+
+    fn update_interpolated(&mut self, delta_time: f32) {
+        self.interpolated_players
+            .retain(|player| self.players.get(&player.id).is_some());
+        for player in &self.players {
+            if self.interpolated_players.get(&player.id).is_none() || player.id == self.player_id {
+                self.interpolated_players.insert(player.clone());
+            }
+            let i = self.interpolated_players.get_mut(&player.id).unwrap();
+            const EXPECTED_PING: f32 = 0.3;
+            *i = Player {
+                id: player.id,
+                name: player.name.clone(),
+                position: i.position + (player.position - i.position) / EXPECTED_PING * delta_time,
+                config: player.config.clone(),
+                radius: player.radius,
+                rotation: player.rotation,
+                input: player.input,
+                velocity: player.velocity,
+                crashed: player.crashed,
+                crash_timer: player.crash_timer,
+                ski_velocity: player.ski_velocity,
+                ski_rotation: player.ski_rotation,
+                is_riding: player.is_riding,
+                seen_no_avalanche: player.seen_no_avalanche,
+                crash_position: player.crash_position,
+                ride_volume: player.ride_volume,
+            };
+        }
+    }
 }
 
 impl geng::State for Game {
@@ -531,6 +563,8 @@ impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
         self.time += delta_time;
+
+        self.update_interpolated(delta_time);
 
         if let Some(time) = &mut self.explosion_time {
             *time += delta_time;
@@ -630,9 +664,7 @@ impl geng::State for Game {
                     player.is_riding = true;
                 }
             }
-            if self.players.get_mut(&self.player_id).unwrap().crash_timer > 2.0
-                && model.avalanche_position.is_none()
-            {
+            if self.players.get_mut(&self.player_id).unwrap().crash_timer > 2.0 {
                 self.players.get_mut(&self.player_id).unwrap().respawn();
             }
             for player in &mut self.players {
@@ -674,7 +706,7 @@ impl geng::State for Game {
             while self.next_particle < 0.0 {
                 self.next_particle += 1.0 / 100.0;
                 let mut particles = Vec::new();
-                for player in &self.players {
+                for player in &self.interpolated_players {
                     if player.is_riding {
                         particles.push(Particle {
                             i_pos: player.position,
@@ -948,7 +980,7 @@ impl geng::State for Game {
         //     Color::WHITE,
         // );
 
-        for player in &self.players {
+        for player in &self.interpolated_players {
             self.draw_shadow(
                 framebuffer,
                 Mat3::translate(player.position) * Mat3::scale_uniform(player.radius),
@@ -968,7 +1000,7 @@ impl geng::State for Game {
             }
         }
 
-        for player in &self.players {
+        for player in &self.interpolated_players {
             self.draw_player(framebuffer, player);
         }
 
@@ -1041,7 +1073,7 @@ impl geng::State for Game {
                 ),
             );
         }
-        for player in &self.players {
+        for player in &self.interpolated_players {
             self.assets.font.draw(
                 framebuffer,
                 &self.camera,
