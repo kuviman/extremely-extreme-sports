@@ -534,7 +534,7 @@ impl Game {
                 radius: player.radius,
                 rotation: player.rotation,
                 input: player.input,
-                velocity: player.velocity,
+                velocity: i.velocity + (player.velocity - i.velocity) / EXPECTED_PING * delta_time,
                 crashed: player.crashed,
                 crash_timer: player.crash_timer,
                 ski_velocity: player.ski_velocity,
@@ -640,7 +640,7 @@ impl geng::State for Game {
                 }
             }
             let target_center = vec2(
-                target_player.position.x,
+                target_player.position.x * 0.3,
                 target_player.position.y + target_player.velocity.y * 0.3,
             );
             self.camera.center += (target_center - self.camera.center) * (1.0 - delta_time * 0.1);
