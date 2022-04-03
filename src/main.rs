@@ -90,6 +90,9 @@ impl simple_net::Model for Model {
             }
             Message::StartTheRace => {
                 if self.avalanche_position.is_none() {
+                    for player in &mut self.players {
+                        player.position.y = 0.0;
+                    }
                     self.avalanche_position = Some(Self::AVALANCHE_START);
                     const TRACK_LEN: f32 = 1000.0;
                     const OBSTACLES_DENSITY: f32 = 0.1;
