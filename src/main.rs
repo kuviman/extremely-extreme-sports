@@ -146,11 +146,9 @@ impl simple_net::Model for Model {
                 .min(Self::AVALANCHE_MAX_SPEED);
             *position -= self.avalanche_speed * delta_time;
             if *position < Self::AVALANCHE_START - 5.0 {
-                if self
-                    .players
-                    .iter()
-                    .all(|player| !player.is_riding || player.position.y > *position)
-                {
+                if self.players.iter().all(|player| {
+                    !player.is_riding || player.position.y > *position + self.avalanche_speed * 5.0
+                }) {
                     self.avalanche_position = None;
                     self.avalanche_speed = Self::AVALANCHE_MIN_SPEED;
                     self.obstacles.clear();
@@ -558,7 +556,9 @@ impl geng::State for Game {
                     player.is_riding = true;
                 }
             }
-            if self.players.get_mut(&self.player_id).unwrap().crash_timer > 5.0 {
+            if self.players.get_mut(&self.player_id).unwrap().crash_timer > 5.0
+                && model.avalanche_position.is_none()
+            {
                 self.players.get_mut(&self.player_id).unwrap().respawn();
             }
             for player in &mut self.players {
@@ -787,7 +787,7 @@ impl geng::State for Game {
             let p = |x: f32, y: f32| draw_2d::TexturedVertex {
                 a_pos: vec2(TRACK_WIDTH + x * 2.0, y),
                 a_color: Color::WHITE,
-                a_vt: vec2(x * 0.999, y / 2.0),
+                a_vt: vec2(x * 0.9, y / 2.0),
             };
             let y = self.camera.center.y - self.camera.fov;
             self.geng.draw_2d(
@@ -801,7 +801,7 @@ impl geng::State for Game {
             let p = |x: f32, y: f32| draw_2d::TexturedVertex {
                 a_pos: vec2(-TRACK_WIDTH - x * 2.0, y),
                 a_color: Color::WHITE,
-                a_vt: vec2(x * 0.999, y / 2.0),
+                a_vt: vec2(x * 0.9, y / 2.0),
             };
             let y = self.camera.center.y - self.camera.fov;
             self.geng.draw_2d(
@@ -961,7 +961,7 @@ impl geng::State for Game {
                     &self.camera,
                     self.camera.center + vec2(0.0, 8.0),
                     1.0,
-                    &format!("{}m", pos as i32),
+                    &format!("avalanche is {}m behind", pos as i32),
                     0.5,
                 );
             }
@@ -989,7 +989,7 @@ impl geng::State for Game {
                 &self.camera,
                 self.camera.center + vec2(0.0, -9.0),
                 1.0,
-                &format!("{}m", (-target_player.position.y) as i32),
+                &format!("score {}m", (-target_player.position.y) as i32),
                 0.5,
             );
         }
