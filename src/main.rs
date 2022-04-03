@@ -955,16 +955,29 @@ impl geng::State for Game {
         }
         if let Some(pos) = model.avalanche_position {
             let pos = pos - self.camera.center.y - self.camera.fov / 2.0;
-            if pos > 1.0 {
-                self.assets.font.draw(
-                    framebuffer,
-                    &self.camera,
-                    self.camera.center + vec2(0.0, 8.0),
-                    1.0,
-                    &format!("avalanche is {}m behind", pos as i32),
-                    0.5,
-                );
-            }
+            // if pos > 1.0 {
+            let alpha = (1.0 - (pos - 1.0) / 5.0).clamp(0.0, 1.0);
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::TexturedQuad::colored(
+                    AABB::<f32>::point(self.camera.center + vec2(0.0, 8.0))
+                        .extend_symmetric(self.assets.ava_warning.size().map(|x| x as f32) * 0.05),
+                    &self.assets.ava_warning,
+                    Color::rgba(1.0, 1.0, 1.0, alpha),
+                ),
+            );
+            // }
+            // if pos > 1.0 {
+            //     self.assets.font.draw(
+            //         framebuffer,
+            //         &self.camera,
+            //         self.camera.center + vec2(0.0, 8.0),
+            //         1.0,
+            //         &format!("avalanche is {}m behind", pos as i32),
+            //         0.5,
+            //     );
+            // }
         } else if let Some((name, score)) = &model.winner {
             self.assets.font.draw(
                 framebuffer,
@@ -1021,6 +1034,7 @@ fn main() {
                     assets.detonator2.set_filter(ugli::Filter::Nearest);
                     assets.detonate_text.set_filter(ugli::Filter::Nearest);
                     assets.spectating_text.set_filter(ugli::Filter::Nearest);
+                    assets.ava_warning.set_filter(ugli::Filter::Nearest);
                     Game::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },

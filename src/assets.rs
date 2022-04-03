@@ -39,6 +39,7 @@ pub struct Assets {
     pub detonator2: ugli::Texture,
     pub detonate_text: ugli::Texture,
     pub spectating_text: ugli::Texture,
+    pub ava_warning: ugli::Texture,
     pub font: Font,
 }
 
