@@ -2,8 +2,10 @@ use geng::net::simple as simple_net;
 use geng::prelude::*;
 
 mod assets;
+mod font;
 
 use assets::*;
+use font::*;
 
 type Id = i64;
 
@@ -20,13 +22,17 @@ pub struct Model {
     tick: u64,
     next_id: Id,
     avalanche_position: Option<f32>,
+    avalanche_speed: f32,
     players: Collection<Player>,
     #[diff = "eq"]
     obstacles: Vec<Obstacle>,
 }
 
 impl Model {
-    pub const AVALANCHE_SPEED: f32 = 7.0;
+    pub const AVALANCHE_MIN_SPEED: f32 = 7.0;
+    pub const AVALANCHE_MAX_SPEED: f32 = 11.0;
+    pub const AVALANCHE_ACCELERATION: f32 =
+        (Self::AVALANCHE_MAX_SPEED - Self::AVALANCHE_MIN_SPEED) / 60.0;
     const AVALANCHE_START: f32 = 20.0;
     const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
@@ -34,6 +40,7 @@ impl Model {
             tick: 0,
             next_id: 0,
             avalanche_position: None,
+            avalanche_speed: Self::AVALANCHE_MIN_SPEED,
             players: default(),
             obstacles: default(),
         }
@@ -131,10 +138,14 @@ impl simple_net::Model for Model {
         let delta_time = 1.0 / TICKS_PER_SECOND;
         self.tick += 1;
         if let Some(position) = &mut self.avalanche_position {
-            *position -= Self::AVALANCHE_SPEED * delta_time;
-            if *position < Self::AVALANCHE_START - Self::AVALANCHE_SPEED * 10.0 {
+            self.avalanche_speed = (self.avalanche_speed
+                + delta_time * Self::AVALANCHE_ACCELERATION)
+                .min(Self::AVALANCHE_MAX_SPEED);
+            *position -= self.avalanche_speed * delta_time;
+            if *position < Self::AVALANCHE_START - 5.0 {
                 if self.players.iter().all(|player| !player.is_riding) {
                     self.avalanche_position = None;
+                    self.avalanche_speed = Self::AVALANCHE_MIN_SPEED;
                     self.obstacles.clear();
                 }
             }
@@ -901,6 +912,19 @@ impl geng::State for Game {
                     &self.assets.spectating_text,
                 ),
             );
+        }
+        if let Some(pos) = model.avalanche_position {
+            let pos = pos - self.camera.center.y - self.camera.fov / 2.0;
+            if pos > 1.0 {
+                self.assets.font.draw(
+                    framebuffer,
+                    &self.camera,
+                    self.camera.center + vec2(0.0, 8.0),
+                    1.0,
+                    &format!("{}m", pos as i32),
+                    0.5,
+                );
+            }
         }
     }
 }
