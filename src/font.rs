@@ -27,6 +27,10 @@ impl Font {
                 {
                     let mut vs = Vec::new();
                     for c in text.chars() {
+                        if c == ' ' {
+                            pos.x += size;
+                            continue;
+                        }
                         let uv = self.atlas.uv(self.indices[&c]);
                         let ps = AABB::point(pos).extend_positive(vec2(size, size));
                         pos.x += size;

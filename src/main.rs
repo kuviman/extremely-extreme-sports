@@ -26,6 +26,8 @@ pub struct Model {
     players: Collection<Player>,
     #[diff = "eq"]
     obstacles: Vec<Obstacle>,
+    #[diff = "eq"]
+    winner: Option<(String, f32)>,
 }
 
 impl Model {
@@ -43,6 +45,7 @@ impl Model {
             avalanche_speed: Self::AVALANCHE_MIN_SPEED,
             players: default(),
             obstacles: default(),
+            winner: None,
         }
     }
 }
@@ -143,11 +146,24 @@ impl simple_net::Model for Model {
                 .min(Self::AVALANCHE_MAX_SPEED);
             *position -= self.avalanche_speed * delta_time;
             if *position < Self::AVALANCHE_START - 5.0 {
-                if self.players.iter().all(|player| !player.is_riding) {
+                if self
+                    .players
+                    .iter()
+                    .all(|player| !player.is_riding || player.position.y > *position)
+                {
                     self.avalanche_position = None;
                     self.avalanche_speed = Self::AVALANCHE_MIN_SPEED;
                     self.obstacles.clear();
                 }
+            }
+            if let Some(winner) = self
+                .players
+                .iter()
+                .filter(|player| player.is_riding)
+                .min_by_key(|player| r32(player.position.y))
+                .map(|player| (player.name.clone(), -player.position.y))
+            {
+                self.winner = Some(winner);
             }
         }
     }
@@ -156,6 +172,8 @@ impl simple_net::Model for Model {
 #[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
 pub struct Player {
     pub id: Id,
+    #[diff = "eq"]
+    pub name: String,
     pub position: Vec2<f32>,
     pub radius: f32,
     pub rotation: f32,
@@ -216,6 +234,7 @@ impl Player {
             crash_timer: 0.0,
             is_riding: false,
             seen_no_avalanche: false,
+            name: self.name.clone(),
             ..*self
         };
     }
@@ -269,6 +288,7 @@ impl Game {
                 let mut result = Collection::new();
                 result.insert(Player {
                     id: player_id,
+                    name: "kuviman".to_owned(),
                     crash_position: Vec2::ZERO,
                     is_riding: false,
                     seen_no_avalanche: false,
@@ -640,6 +660,16 @@ impl geng::State for Game {
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         let model = self.model.get();
         let my_player = self.players.get(&self.player_id).unwrap();
+        let mut target_player = my_player;
+        if !my_player.is_riding && model.avalanche_position.is_some() {
+            if let Some(player) = self
+                .players
+                .iter()
+                .min_by_key(|player| r32(player.position.y))
+            {
+                target_player = player;
+            }
+        }
 
         // let mut new_trail_texture =
         //     ugli::Texture::new_uninitialized(self.geng.ugli(), framebuffer.size());
@@ -906,11 +936,21 @@ impl geng::State for Game {
                 framebuffer,
                 &self.camera,
                 &draw_2d::TexturedQuad::new(
-                    AABB::<f32>::point(self.camera.center + vec2(0.0, -8.0)).extend_symmetric(
+                    AABB::<f32>::point(self.camera.center + vec2(0.0, -5.0)).extend_symmetric(
                         self.assets.spectating_text.size().map(|x| x as f32) * 0.05,
                     ),
                     &self.assets.spectating_text,
                 ),
+            );
+        }
+        for player in &self.players {
+            self.assets.font.draw(
+                framebuffer,
+                &self.camera,
+                player.position + vec2(0.0, 1.0),
+                0.5,
+                &player.name,
+                0.5,
             );
         }
         if let Some(pos) = model.avalanche_position {
@@ -925,6 +965,33 @@ impl geng::State for Game {
                     0.5,
                 );
             }
+        } else if let Some((name, score)) = &model.winner {
+            self.assets.font.draw(
+                framebuffer,
+                &self.camera,
+                self.camera.center + vec2(0.0, 8.0),
+                1.0,
+                &format!("winner is {}", name),
+                0.5,
+            );
+            self.assets.font.draw(
+                framebuffer,
+                &self.camera,
+                self.camera.center + vec2(0.0, 7.0),
+                1.0,
+                &format!("resulted {}m", *score as i32),
+                0.5,
+            );
+        }
+        if target_player.is_riding {
+            self.assets.font.draw(
+                framebuffer,
+                &self.camera,
+                self.camera.center + vec2(0.0, -9.0),
+                1.0,
+                &format!("{}m", (-target_player.position.y) as i32),
+                0.5,
+            );
         }
     }
 }
