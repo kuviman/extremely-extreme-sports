@@ -37,6 +37,8 @@ pub struct Assets {
     pub background: ugli::Texture,
     pub detonator: ugli::Texture,
     pub detonator2: ugli::Texture,
+    pub detonate_text: ugli::Texture,
+    pub spectating_text: ugli::Texture,
 }
 
 async fn load_obstacles(

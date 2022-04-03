@@ -455,6 +455,7 @@ impl geng::State for Game {
     fn update(&mut self, delta_time: f64) {
         let delta_time = delta_time as f32;
         self.time += delta_time;
+
         self.players.get_mut(&self.player_id).unwrap().input = 0.0;
         if self.geng.window().is_key_pressed(geng::Key::A)
             || self.geng.window().is_key_pressed(geng::Key::Left)
@@ -468,6 +469,24 @@ impl geng::State for Game {
         }
         {
             let model = self.model.get();
+
+            let my_player = self.players.get(&self.player_id).unwrap();
+            let mut target_player = my_player;
+            if !my_player.is_riding && model.avalanche_position.is_some() {
+                if let Some(player) = self
+                    .players
+                    .iter()
+                    .min_by_key(|player| r32(player.position.y))
+                {
+                    target_player = player;
+                }
+            }
+            let target_center = vec2(
+                target_player.position.x,
+                target_player.position.y + target_player.velocity.y * 0.3,
+            );
+            self.camera.center += (target_center - self.camera.center) * (1.0 - delta_time * 0.1);
+
             if model.tick != self.last_model_tick {
                 self.last_model_tick = model.tick;
                 for player in &model.players {
@@ -610,17 +629,6 @@ impl geng::State for Game {
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         let model = self.model.get();
         let my_player = self.players.get(&self.player_id).unwrap();
-        let mut target_center = my_player.position;
-        if !my_player.is_riding && model.avalanche_position.is_some() {
-            if let Some(player) = self
-                .players
-                .iter()
-                .min_by_key(|player| r32(player.position.y))
-            {
-                target_center = player.position;
-            }
-        }
-        self.camera.center = target_center;
 
         // let mut new_trail_texture =
         //     ugli::Texture::new_uninitialized(self.geng.ugli(), framebuffer.size());
@@ -700,12 +708,12 @@ impl geng::State for Game {
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::Text::unit(
-                    self.geng.default_font().clone(),
-                    "Press Space to detonate",
-                    Color::BLACK,
-                )
-                .translate(vec2(0.0, 4.0)),
+                &draw_2d::TexturedQuad::new(
+                    AABB::<f32>::point(self.camera.center + vec2(0.0, 4.0)).extend_symmetric(
+                        self.assets.detonate_text.size().map(|x| x as f32) * 0.05,
+                    ),
+                    &self.assets.detonate_text,
+                ),
             );
         }
 
@@ -886,8 +894,12 @@ impl geng::State for Game {
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::Text::unit(self.geng.default_font().clone(), "SPECTATING", Color::BLACK)
-                    .translate(self.camera.center + vec2(0.0, 4.0)),
+                &draw_2d::TexturedQuad::new(
+                    AABB::<f32>::point(self.camera.center + vec2(0.0, -8.0)).extend_symmetric(
+                        self.assets.spectating_text.size().map(|x| x as f32) * 0.05,
+                    ),
+                    &self.assets.spectating_text,
+                ),
             );
         }
     }
@@ -908,6 +920,8 @@ fn main() {
                     assets.background.set_filter(ugli::Filter::Nearest);
                     assets.detonator.set_filter(ugli::Filter::Nearest);
                     assets.detonator2.set_filter(ugli::Filter::Nearest);
+                    assets.detonate_text.set_filter(ugli::Filter::Nearest);
+                    assets.spectating_text.set_filter(ugli::Filter::Nearest);
                     Game::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },
