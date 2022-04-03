@@ -499,7 +499,7 @@ impl Game {
     }
     fn play_sound(&self, sound: &geng::Sound, pos: Vec2<f32>) {
         let mut effect = sound.effect();
-        effect.set_volume((1.0 - ((pos - self.camera.center).len() / 10.0).sqr()) as f64);
+        effect.set_volume((1.0 - ((pos - self.camera.center).len() / 10.0).sqr()).max(0.0) as f64);
         effect.play()
     }
 }
