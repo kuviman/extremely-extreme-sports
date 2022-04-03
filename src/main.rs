@@ -253,6 +253,7 @@ pub struct Particle {
 
 pub struct Game {
     time: f32,
+    explosion_time: Option<f32>,
     last_model_tick: u64,
     geng: Geng,
     assets: Rc<Assets>,
@@ -278,6 +279,7 @@ impl Game {
     ) -> Self {
         Self {
             time: 0.0,
+            explosion_time: None,
             geng: geng.clone(),
             assets: assets.clone(),
             camera: geng::Camera2d {
@@ -509,6 +511,13 @@ impl geng::State for Game {
         let delta_time = delta_time as f32;
         self.time += delta_time;
 
+        if let Some(time) = &mut self.explosion_time {
+            *time += delta_time;
+            if *time > 1.0 {
+                self.explosion_time = None;
+            }
+        }
+
         let mut sounds: Vec<(&[geng::Sound], Vec2<f32>)> = Vec::new();
 
         self.players.get_mut(&self.player_id).unwrap().input = 0.0;
@@ -569,6 +578,9 @@ impl geng::State for Game {
                 let player = self.players.get_mut(&self.player_id).unwrap();
                 if !player.is_riding {
                     for _ in 0..100 {
+                        self.explosion_time = Some(0.0);
+                        self.assets.boom_sound.play();
+                        break;
                         self.explosion_particles.push(Particle {
                             i_pos: vec2(0.0, 5.0),
                             i_vel: vec2(global_rng().gen_range(0.0f32..=1.0).powf(0.2), 0.0)
@@ -1067,6 +1079,20 @@ impl geng::State for Game {
         } else {
             self.avalanche_sound_effect.set_volume(0.0);
         }
+
+        if let Some(time) = self.explosion_time {
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::TexturedQuad::colored(
+                    AABB::<f32>::point(vec2(0.0, 5.0)).extend_symmetric(
+                        self.assets.boom.size().map(|x| x as f32) * 0.05 * (1.0 + time),
+                    ),
+                    &self.assets.boom,
+                    Color::rgba(1.0, 1.0, 1.0, 1.0 - time.sqr()),
+                ),
+            );
+        }
     }
 }
 
@@ -1088,6 +1114,7 @@ fn main() {
                     assets.detonate_text.set_filter(ugli::Filter::Nearest);
                     assets.spectating_text.set_filter(ugli::Filter::Nearest);
                     assets.ava_warning.set_filter(ugli::Filter::Nearest);
+                    assets.boom.set_filter(ugli::Filter::Nearest);
                     assets.ride_sound.looped = true;
                     assets.avalanche_sound.looped = true;
                     Game::new(&geng, &Rc::new(assets), player_id, model)

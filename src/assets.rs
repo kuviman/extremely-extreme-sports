@@ -44,6 +44,8 @@ pub struct Assets {
     #[asset(range = "1..=3", path = "crash_sound*.wav")]
     pub crash_sounds: Vec<geng::Sound>,
     pub ride_sound: geng::Sound,
+    pub boom: ugli::Texture,
+    pub boom_sound: geng::Sound,
     pub avalanche_sound: geng::Sound,
 }
 
