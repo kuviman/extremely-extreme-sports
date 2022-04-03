@@ -194,10 +194,10 @@ impl Player {
     const MAX_WALK_SPEED: f32 = 3.0;
     const FRICTION: f32 = 5.0;
     const DOWNHILL_ACCELERATION: f32 = 5.0;
-    const WALK_ACCELERATION: f32 = 10.0;
+    const WALK_ACCELERATION: f32 = 20.0;
     const CRASH_DECELERATION: f32 = 3.0;
     pub fn update_walk(&mut self, delta_time: f32) {
-        let target_speed = self.input.clamp_abs(Self::MAX_WALK_SPEED);
+        let target_speed = self.input * Self::MAX_WALK_SPEED;
         self.velocity.x +=
             (target_speed - self.velocity.x).clamp_abs(Self::WALK_ACCELERATION * delta_time);
         self.position += self.velocity * delta_time;
@@ -229,7 +229,7 @@ impl Player {
 
     fn respawn(&mut self) {
         *self = Player {
-            position: vec2(0.0, 0.0),
+            position: vec2(global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH), 0.0),
             rotation: 0.0,
             velocity: Vec2::ZERO,
             crashed: false,
@@ -269,6 +269,7 @@ pub struct Game {
     ride_sound_effect: geng::SoundEffect,
     avalanche_sound_effect: geng::SoundEffect,
     music: Option<geng::SoundEffect>,
+    spawn_particles: Vec<(f32, Vec2<f32>)>,
 }
 
 impl Game {
@@ -288,6 +289,7 @@ impl Game {
                 rotation: 0.0,
                 fov: 20.0,
             },
+            spawn_particles: Vec::new(),
             model,
             player_id,
             last_model_tick: u64::MAX,
@@ -302,7 +304,7 @@ impl Game {
                     ski_rotation: 0.0,
                     crash_timer: 0.0,
                     ride_volume: 0.0,
-                    position: Vec2::ZERO,
+                    position: vec2(global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH), 0.0),
                     radius: 0.3,
                     rotation: 0.0,
                     input: 0.0,
@@ -476,8 +478,17 @@ impl Game {
         self.draw_texture(
             framebuffer,
             &self.assets.player,
-            Mat3::translate(player.position)
-                * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0)),
+            Mat3::translate(
+                player.position
+                    + if player.is_riding {
+                        vec2(0.0, 0.0)
+                    } else {
+                        vec2(
+                            0.0,
+                            player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
+                        )
+                    },
+            ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0)),
             Color::WHITE,
         );
     }
@@ -523,6 +534,11 @@ impl geng::State for Game {
             }
         }
 
+        for (t, _) in &mut self.spawn_particles {
+            *t += delta_time * 3.0;
+        }
+        self.spawn_particles.retain(|(t, _)| *t < 1.0);
+
         let mut sounds: Vec<(&[geng::Sound], Vec2<f32>)> = Vec::new();
 
         self.players.get_mut(&self.player_id).unwrap().input = 0.0;
@@ -560,7 +576,17 @@ impl geng::State for Game {
                 self.last_model_tick = model.tick;
                 for player in &model.players {
                     if player.id != self.player_id {
+                        if self.players.get(&player.id).is_none() {
+                            self.spawn_particles.push((0.0, player.position));
+                            self.assets.spawn_sound.play();
+                        }
                         self.players.insert(player.clone());
+                    }
+                }
+                for player in &self.players {
+                    if player.id != self.player_id && model.players.get(&player.id).is_none() {
+                        self.spawn_particles.push((0.0, player.position));
+                        self.assets.spawn_sound.play();
                     }
                 }
                 self.players.retain(|player| {
@@ -644,30 +670,32 @@ impl geng::State for Game {
                 self.next_particle += 1.0 / 100.0;
                 let mut particles = Vec::new();
                 for player in &self.players {
-                    particles.push(Particle {
-                        i_pos: player.position,
-                        // i_vel: vec2(
-                        //     global_rng().gen_range(-1.0..=1.0),
-                        //     global_rng().gen_range(-1.0..=1.0),
-                        // ) / 3.0,
-                        i_vel: Vec2::ZERO,
-                        i_time: self.time,
-                        i_size: 0.2,
-                        i_opacity: 1.0,
-                    });
-                    let normal = vec2(1.0, 0.0).rotate(player.rotation);
-                    let force = Vec2::dot(player.velocity, normal).abs();
-                    particles.push(Particle {
-                        i_pos: player.position,
-                        i_vel: vec2(
-                            global_rng().gen_range(-1.0..=1.0),
-                            global_rng().gen_range(-1.0..=1.0),
-                        ) / 2.0
-                            + player.velocity,
-                        i_time: self.time,
-                        i_size: 0.4,
-                        i_opacity: 0.5 * force / Player::MAX_SPEED,
-                    });
+                    if player.is_riding {
+                        particles.push(Particle {
+                            i_pos: player.position,
+                            // i_vel: vec2(
+                            //     global_rng().gen_range(-1.0..=1.0),
+                            //     global_rng().gen_range(-1.0..=1.0),
+                            // ) / 3.0,
+                            i_vel: Vec2::ZERO,
+                            i_time: self.time,
+                            i_size: 0.2,
+                            i_opacity: 1.0,
+                        });
+                        let normal = vec2(1.0, 0.0).rotate(player.rotation);
+                        let force = Vec2::dot(player.velocity, normal).abs();
+                        particles.push(Particle {
+                            i_pos: player.position,
+                            i_vel: vec2(
+                                global_rng().gen_range(-1.0..=1.0),
+                                global_rng().gen_range(-1.0..=1.0),
+                            ) / 2.0
+                                + player.velocity,
+                            i_time: self.time,
+                            i_size: 0.4,
+                            i_opacity: 0.5 * force / Player::MAX_SPEED,
+                        });
+                    }
                 }
                 self.particles.extend(particles);
                 if let Some(pos) = model.avalanche_position {
@@ -939,6 +967,15 @@ impl geng::State for Game {
             self.draw_player(framebuffer, player);
         }
 
+        for &(t, pos) in &self.spawn_particles {
+            self.draw_texture(
+                framebuffer,
+                &self.assets.spawn,
+                Mat3::translate(pos + vec2(0.0, 0.5)) * Mat3::scale_uniform(t),
+                Color::rgba(0.5, 0.5, 1.0, 1.0 - t),
+            );
+        }
+
         if true || self.players.get(&self.player_id).unwrap().is_riding {
             for obstacle in &model.obstacles {
                 if !in_view(obstacle.position) {
@@ -1120,6 +1157,7 @@ fn main() {
                     assets.spectating_text.set_filter(ugli::Filter::Nearest);
                     assets.ava_warning.set_filter(ugli::Filter::Nearest);
                     assets.boom.set_filter(ugli::Filter::Nearest);
+                    assets.spawn.set_filter(ugli::Filter::Nearest);
                     assets.ride_sound.looped = true;
                     assets.avalanche_sound.looped = true;
                     assets.music.looped = true;
