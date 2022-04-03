@@ -892,8 +892,8 @@ impl geng::State for Game {
             &self.camera,
             &draw_2d::Quad::new(
                 AABB::<f32>::point(Vec2::ZERO)
-                    .extend_left(TRACK_WIDTH * 2.0)
-                    .extend_right(TRACK_WIDTH * 2.0)
+                    .extend_left(TRACK_WIDTH * 5.0)
+                    .extend_right(TRACK_WIDTH * 5.0)
                     .extend_up(100.0),
                 Color::rgb(145.0 / 255.0, 249.0 / 255.0, 1.0),
             ),
@@ -949,7 +949,7 @@ impl geng::State for Game {
             &self.camera,
             &draw_2d::Quad::new(
                 AABB::point(vec2(TRACK_WIDTH, 0.0))
-                    .extend_right(TRACK_WIDTH * 2.0)
+                    .extend_right(TRACK_WIDTH * 5.0)
                     .extend_up(self.camera.center.y - self.camera.fov),
                 c1,
             ),
@@ -959,7 +959,7 @@ impl geng::State for Game {
             &self.camera,
             &draw_2d::Quad::new(
                 AABB::point(vec2(-TRACK_WIDTH, 0.0))
-                    .extend_right(-TRACK_WIDTH * 2.0)
+                    .extend_right(-TRACK_WIDTH * 5.0)
                     .extend_up(self.camera.center.y - self.camera.fov),
                 c1,
             ),
@@ -1092,19 +1092,19 @@ impl geng::State for Game {
                 &self.camera,
                 &draw_2d::Polygon::new_gradient(vec![
                     draw_2d::ColoredVertex {
-                        a_pos: vec2(-TRACK_WIDTH * 2.0, position - 3.0),
+                        a_pos: vec2(-TRACK_WIDTH * 5.0, position - 3.0),
                         a_color: c2,
                     },
                     draw_2d::ColoredVertex {
-                        a_pos: vec2(-TRACK_WIDTH * 2.0, position),
+                        a_pos: vec2(-TRACK_WIDTH * 5.0, position),
                         a_color: c1,
                     },
                     draw_2d::ColoredVertex {
-                        a_pos: vec2(TRACK_WIDTH * 2.0, position),
+                        a_pos: vec2(TRACK_WIDTH * 5.0, position),
                         a_color: c1,
                     },
                     draw_2d::ColoredVertex {
-                        a_pos: vec2(TRACK_WIDTH * 2.0, position - 3.0),
+                        a_pos: vec2(TRACK_WIDTH * 5.0, position - 3.0),
                         a_color: c2,
                     },
                 ]),
@@ -1114,8 +1114,8 @@ impl geng::State for Game {
                 &self.camera,
                 &draw_2d::Quad::new(
                     AABB::point(vec2(0.0, position))
-                        .extend_left(TRACK_WIDTH * 2.0)
-                        .extend_right(TRACK_WIDTH * 2.0)
+                        .extend_left(TRACK_WIDTH * 5.0)
+                        .extend_right(TRACK_WIDTH * 5.0)
                         .extend_up(100.0),
                     c1,
                 ),
