@@ -3,9 +3,11 @@ use geng::prelude::*;
 
 mod assets;
 mod font;
+mod lobby;
 
 use assets::*;
 use font::*;
+use lobby::*;
 
 type Id = i64;
 
@@ -277,6 +279,7 @@ impl Game {
         geng: &Geng,
         assets: &Rc<Assets>,
         player_id: Id,
+        name: String,
         model: simple_net::Remote<Model>,
     ) -> Self {
         Self {
@@ -297,7 +300,7 @@ impl Game {
                 let mut result = Collection::new();
                 result.insert(Player {
                     id: player_id,
-                    name: "kuviman".to_owned(),
+                    name,
                     crash_position: Vec2::ZERO,
                     is_riding: false,
                     seen_no_avalanche: false,
@@ -1161,7 +1164,7 @@ fn main() {
                     assets.ride_sound.looped = true;
                     assets.avalanche_sound.looped = true;
                     assets.music.looped = true;
-                    Game::new(&geng, &Rc::new(assets), player_id, model)
+                    Lobby::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },
         )

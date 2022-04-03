@@ -18,6 +18,9 @@ impl Font {
         text: &str,
         align: f32,
     ) {
+        if text.is_empty() {
+            return;
+        }
         let mut pos = pos;
         pos.x -= size * align * text.len() as f32;
         self.geng.draw_2d(
