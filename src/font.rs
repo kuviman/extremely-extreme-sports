@@ -37,7 +37,7 @@ impl Font {
                         }
                         let uv = self.atlas.uv(self.indices[&c]);
                         let ps = AABB::point(pos).extend_positive(vec2(size, size));
-                        pos.x += size;
+                        pos.x += size * 0.8;
                         vs.push(draw_2d::TexturedVertex {
                             a_pos: vec2(ps.x_min, ps.y_min),
                             a_color: color,
