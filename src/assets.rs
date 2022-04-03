@@ -47,6 +47,8 @@ pub struct Assets {
     pub boom: ugli::Texture,
     pub boom_sound: geng::Sound,
     pub avalanche_sound: geng::Sound,
+    #[asset(path = "music.mp3")]
+    pub music: geng::Sound,
 }
 
 async fn load_obstacles(

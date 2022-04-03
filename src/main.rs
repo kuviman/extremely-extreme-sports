@@ -147,7 +147,7 @@ impl simple_net::Model for Model {
             *position -= self.avalanche_speed * delta_time;
             if *position < Self::AVALANCHE_START - 5.0 {
                 if self.players.iter().all(|player| {
-                    !player.is_riding || player.position.y > *position + self.avalanche_speed * 5.0
+                    !player.is_riding || player.position.y > *position + self.avalanche_speed * 2.0
                 }) {
                     self.avalanche_position = None;
                     self.avalanche_speed = Self::AVALANCHE_MIN_SPEED;
@@ -268,6 +268,7 @@ pub struct Game {
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
     ride_sound_effect: geng::SoundEffect,
     avalanche_sound_effect: geng::SoundEffect,
+    music: Option<geng::SoundEffect>,
 }
 
 impl Game {
@@ -347,6 +348,7 @@ impl Game {
                 ],
             ),
             next_particle: 0.0,
+            music: None,
         }
     }
 
@@ -488,6 +490,9 @@ impl Game {
 
 impl geng::State for Game {
     fn handle_event(&mut self, event: geng::Event) {
+        if self.music.is_none() {
+            self.music = Some(self.assets.music.play());
+        }
         match event {
             geng::Event::KeyDown { key } => match key {
                 geng::Key::Space => {
@@ -594,7 +599,7 @@ impl geng::State for Game {
                     player.is_riding = true;
                 }
             }
-            if self.players.get_mut(&self.player_id).unwrap().crash_timer > 5.0
+            if self.players.get_mut(&self.player_id).unwrap().crash_timer > 2.0
                 && model.avalanche_position.is_none()
             {
                 self.players.get_mut(&self.player_id).unwrap().respawn();
@@ -1117,6 +1122,7 @@ fn main() {
                     assets.boom.set_filter(ugli::Filter::Nearest);
                     assets.ride_sound.looped = true;
                     assets.avalanche_sound.looped = true;
+                    assets.music.looped = true;
                     Game::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },
