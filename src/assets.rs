@@ -33,7 +33,7 @@ pub struct PlayerAssets {
     pub pants: Vec<ugli::Texture>,
     #[asset(range = "1..=4", path = "face/*.png")]
     pub face: Vec<ugli::Texture>,
-    #[asset(range = "1..=5", path = "equipment/*.png")]
+    #[asset(range = "1..=6", path = "equipment/*.png")]
     pub equipment: Vec<ugli::Texture>,
     pub body: ugli::Texture,
     #[asset(load_with = "load_custom(&geng, &base_path.join(\"custom.json\"))")]
@@ -48,9 +48,10 @@ async fn load_custom(
     let list: Vec<String> = serde_json::from_str(&json)?;
     let mut result = HashMap::new();
     for name in list {
-        let texture: ugli::Texture =
+        let mut texture: ugli::Texture =
             geng::LoadAsset::load(geng, &path.parent().unwrap().join(format!("{name}.png")))
                 .await?;
+        texture.set_filter(ugli::Filter::Nearest);
         result.insert(name, texture);
     }
     Ok(result)

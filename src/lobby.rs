@@ -252,6 +252,9 @@ impl geng::State for Lobby {
                                 self.config.face = 0;
                                 self.config.hat = 3;
                             }
+                            if self.name == "wendel" {
+                                self.config.equipment = 5;
+                            }
                         }
                         _ => unreachable!(),
                     }

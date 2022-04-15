@@ -4,11 +4,11 @@
 - [x] boaty
 - [x] giraffe
 - [x] nickpea
-- [ ] basic milky
-- [ ] wendel
+- [x] basic milky
+- [x] wendel
 - [x] bogden
 - [x] kimo
 - [x] nertsal
-- [ ] potkirland
+- [x] potkirland
 - [x] badcop
 - [x] jamjamem
