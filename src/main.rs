@@ -40,6 +40,7 @@ impl Model {
     const AVALANCHE_START: f32 = 30.0;
     const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
+        send_activity("Server started");
         Self {
             tick: 0,
             next_id: 0,
@@ -55,6 +56,7 @@ impl Model {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Message {
     UpdatePlayer(Player),
+    Score(i32),
     StartTheRace,
 }
 const TRACK_WIDTH: f32 = 10.0;
@@ -63,6 +65,27 @@ const TRACK_WIDTH: f32 = 10.0;
 pub enum Event {}
 
 const TICKS_PER_SECOND: f32 = 10.0;
+
+fn send_activity(text: &str) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        println!("{}", text);
+        if let Ok(url) = std::env::var("DISCORD_ACTIVITY_WEBHOOK") {
+            let text = text.to_owned();
+            std::thread::spawn(move || {
+                let client = reqwest::blocking::Client::new();
+                #[derive(Serialize)]
+                struct Data {
+                    content: String,
+                }
+                let data = Data { content: text };
+                if let Err(e) = client.post(url).json(&data).send() {
+                    println!("{}", e);
+                }
+            });
+        }
+    }
+}
 
 impl simple_net::Model for Model {
     type PlayerId = Id;
@@ -76,7 +99,9 @@ impl simple_net::Model for Model {
     }
 
     fn drop_player(&mut self, player_id: &Self::PlayerId) {
-        self.players.remove(&player_id);
+        if let Some(player) = self.players.remove(&player_id) {
+            send_activity(&format!("{} left the server", player.name));
+        }
     }
 
     fn handle_message(&mut self, player_id: &Self::PlayerId, message: Message) {
@@ -86,7 +111,15 @@ impl simple_net::Model for Model {
                 if player.id != player_id {
                     return;
                 }
+                if self.players.get(&player_id).is_none() {
+                    send_activity(&format!("{} just joined the server", player.name));
+                }
                 self.players.insert(player);
+            }
+            Message::Score(score) => {
+                if let Some(player) = self.players.get(&player_id) {
+                    send_activity(&format!("{} scored {}", player.name, score));
+                }
             }
             Message::StartTheRace => {
                 if self.avalanche_position.is_none() {
@@ -725,6 +758,9 @@ impl geng::State for Game {
                 }
             }
             if self.players.get_mut(&self.player_id).unwrap().crash_timer > 2.0 {
+                self.model.send(Message::Score(
+                    (-self.players.get_mut(&self.player_id).unwrap().position.y * 100.0) as i32,
+                ));
                 self.players.get_mut(&self.player_id).unwrap().respawn();
             }
             for player in &mut self.players {
