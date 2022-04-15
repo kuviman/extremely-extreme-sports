@@ -42,7 +42,7 @@ impl Model {
     const AVALANCHE_START: f32 = 30.0;
     const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
-        send_activity("Server started");
+        send_activity("Server started :green_circle:");
         Self {
             tick: 0,
             next_id: 0,
