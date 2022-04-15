@@ -30,6 +30,8 @@ pub struct Model {
     obstacles: Vec<Obstacle>,
     #[diff = "eq"]
     winner: Option<(String, f32)>,
+    #[diff = "eq"]
+    scores: Vec<(String, i32)>,
 }
 
 impl Model {
@@ -49,6 +51,7 @@ impl Model {
             players: default(),
             obstacles: default(),
             winner: None,
+            scores: vec![],
         }
     }
 }
@@ -118,7 +121,7 @@ impl simple_net::Model for Model {
             }
             Message::Score(score) => {
                 if let Some(player) = self.players.get(&player_id) {
-                    send_activity(&format!("{} scored {}", player.name, score));
+                    self.scores.push((player.name.clone(), score));
                 }
             }
             Message::StartTheRace => {
@@ -126,6 +129,7 @@ impl simple_net::Model for Model {
                     for player in &mut self.players {
                         player.position.y = 0.0;
                     }
+                    self.scores.clear();
                     self.avalanche_position = Some(Self::AVALANCHE_START);
                     const TRACK_LEN: f32 = 1000.0;
                     const OBSTACLES_DENSITY: f32 = 0.1;
@@ -190,6 +194,22 @@ impl simple_net::Model for Model {
                     self.avalanche_position = None;
                     self.avalanche_speed = Self::AVALANCHE_MIN_SPEED;
                     self.obstacles.clear();
+
+                    if !self.scores.is_empty() {
+                        self.scores.sort_by_key(|(_name, score)| -score);
+                        let mut text = "Race results:".to_owned();
+                        for (index, (name, score)) in self.scores.iter().enumerate() {
+                            text.push('\n');
+                            text.push_str(&(index + 1).to_string());
+                            text.push_str(". ");
+                            text.push_str(name);
+                            text.push_str(" - ");
+                            text.push_str(&score.to_string());
+                        }
+                        text.push_str("\n:extremeBoom:");
+                        send_activity(&text);
+                        self.scores.clear();
+                    }
                 }
             }
             if let Some(winner) = self
