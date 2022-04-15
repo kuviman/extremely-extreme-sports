@@ -19,16 +19,18 @@ pub struct PlayerConfig {
     pub pants: usize,
     pub equipment: usize,
     pub face: usize,
+    pub custom: Option<String>,
 }
 
 impl PlayerConfig {
     pub fn random(assets: &PlayerAssets) -> Self {
         Self {
-            hat: global_rng().gen_range(0..assets.hat.len()),
-            coat: global_rng().gen_range(0..assets.coat.len()),
-            pants: global_rng().gen_range(0..assets.pants.len()),
-            face: global_rng().gen_range(0..assets.face.len()),
-            equipment: global_rng().gen_range(0..assets.equipment.len()),
+            hat: global_rng().gen_range(0..4),       // assets.hat.len()),
+            coat: global_rng().gen_range(0..4),      // assets.coat.len()),
+            pants: global_rng().gen_range(0..4),     // assets.pants.len()),
+            face: global_rng().gen_range(0..4),      // assets.face.len()),
+            equipment: global_rng().gen_range(0..2), // assets.equipment.len()),
+            custom: None,
         }
     }
 }
@@ -58,7 +60,7 @@ impl Lobby {
     }
     fn buttons(&self) -> Vec<AABB<f32>> {
         let size = 0.1;
-        vec![
+        let mut result = vec![
             AABB::point(vec2(0.0, 0.8)).extend_positive(vec2("hat".len() as f32, 1.0) * size),
             AABB::point(vec2(0.0, 0.6)).extend_positive(vec2("face".len() as f32, 1.0) * size),
             AABB::point(vec2(0.0, 0.4)).extend_positive(vec2("coat".len() as f32, 1.0) * size),
@@ -67,7 +69,14 @@ impl Lobby {
             AABB::point(vec2(-0.5, -0.2)).extend_positive(vec2("random".len() as f32, 1.0) * size),
             AABB::point(vec2(0.5, -0.4))
                 .extend_positive(vec2("play".len() as f32, 1.0) * size * 2.0),
-        ]
+        ];
+        if self.assets.player.custom.contains_key(&self.name) {
+            result.push(
+                AABB::point(vec2(0.0, 1.3))
+                    .extend_positive(vec2("secret".len() as f32, 1.0) * size * 1.0),
+            );
+        }
+        result
     }
 }
 
@@ -123,6 +132,7 @@ impl geng::State for Lobby {
             "equipment",
             "random",
             "play",
+            "secret",
         ]) {
             let mut pos = button.bottom_left();
             if button.contains(self.mouse)
@@ -191,23 +201,23 @@ impl geng::State for Lobby {
                     match index {
                         0 => {
                             self.config.hat += 1;
-                            self.config.hat %= self.assets.player.hat.len();
+                            self.config.hat %= 4; // self.assets.player.hat.len();
                         }
                         1 => {
                             self.config.face += 1;
-                            self.config.face %= self.assets.player.face.len();
+                            self.config.face %= 4; //self.assets.player.face.len();
                         }
                         2 => {
                             self.config.coat += 1;
-                            self.config.coat %= self.assets.player.coat.len();
+                            self.config.coat %= 4; // self.assets.player.coat.len();
                         }
                         3 => {
                             self.config.pants += 1;
-                            self.config.pants %= self.assets.player.pants.len();
+                            self.config.pants %= 4; // self.assets.player.pants.len();
                         }
                         4 => {
                             self.config.equipment += 1;
-                            self.config.equipment %= self.assets.player.equipment.len();
+                            self.config.equipment %= 2; // self.assets.player.equipment.len();
                         }
                         5 => {
                             self.config = PlayerConfig::random(&self.assets.player);
@@ -225,6 +235,17 @@ impl geng::State for Lobby {
                                 self.config.clone(),
                                 self.model.take().unwrap(),
                             ))));
+                        }
+                        7 => {
+                            if self.assets.player.custom.contains_key(&self.name) {
+                                self.config.custom = Some(self.name.clone());
+                            }
+                            if self.name == "6fu" {
+                                self.config.equipment = 3;
+                            }
+                            if self.name == "kidgiraffe" {
+                                self.config.equipment = 2;
+                            }
                         }
                         _ => unreachable!(),
                     }

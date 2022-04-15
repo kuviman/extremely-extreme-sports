@@ -1,3 +1,13 @@
-- Customization screen
-- Reduce lag
-- Emotes
+- [x] Pomo
+- [x] kuvi
+- [x] M33p
+- [x] boaty
+- [x] giraffe
+- [x] nickpea
+- [ ] basic milky
+- [ ] wendel
+- [ ] bogden
+- [x] kimo
+- [x] nertsal
+- [ ] potkirland
+- [x] badcop

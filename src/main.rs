@@ -467,14 +467,14 @@ impl Game {
                 framebuffer,
                 equipment,
                 Mat3::translate(player.position) * Mat3::rotate(player.rotation),
-                Color::BLACK,
+                Color::WHITE,
             );
         } else if !player.crashed {
             self.draw_texture(
                 framebuffer,
                 equipment,
                 Mat3::translate(player.position + vec2(0.0, 1.0)),
-                Color::BLACK,
+                Color::WHITE,
             );
         }
 
@@ -488,7 +488,7 @@ impl Game {
                         + player.ski_velocity * t
                         + vec2(0.0, (1.0 - (t * 2.0 - 1.0).sqr()) * 5.0),
                 ) * Mat3::rotate(player.ski_rotation + t * 5.0),
-                Color::BLACK,
+                Color::WHITE,
             );
         }
         self.draw_texture(

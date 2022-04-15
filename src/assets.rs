@@ -33,9 +33,27 @@ pub struct PlayerAssets {
     pub pants: Vec<ugli::Texture>,
     #[asset(range = "1..=4", path = "face/*.png")]
     pub face: Vec<ugli::Texture>,
-    #[asset(range = "1..=2", path = "equipment/*.png")]
+    #[asset(range = "1..=5", path = "equipment/*.png")]
     pub equipment: Vec<ugli::Texture>,
     pub body: ugli::Texture,
+    #[asset(load_with = "load_custom(&geng, &base_path.join(\"custom.json\"))")]
+    pub custom: HashMap<String, ugli::Texture>,
+}
+
+async fn load_custom(
+    geng: &Geng,
+    path: &std::path::Path,
+) -> anyhow::Result<HashMap<String, ugli::Texture>> {
+    let json: String = geng::LoadAsset::load(geng, path).await?;
+    let list: Vec<String> = serde_json::from_str(&json)?;
+    let mut result = HashMap::new();
+    for name in list {
+        let texture: ugli::Texture =
+            geng::LoadAsset::load(geng, &path.parent().unwrap().join(format!("{name}.png")))
+                .await?;
+        result.insert(name, texture);
+    }
+    Ok(result)
 }
 
 impl PlayerAssets {
@@ -54,31 +72,39 @@ impl PlayerAssets {
                 rotation: 0.0,
                 fov: 2.0,
             };
-            geng.draw_2d(
-                framebuffer,
-                &camera,
-                &draw_2d::TexturedQuad::unit(&self.body),
-            );
-            geng.draw_2d(
-                framebuffer,
-                &camera,
-                &draw_2d::TexturedQuad::unit(&self.face[config.face]),
-            );
-            geng.draw_2d(
-                framebuffer,
-                &camera,
-                &draw_2d::TexturedQuad::unit(&self.hat[config.hat]),
-            );
-            geng.draw_2d(
-                framebuffer,
-                &camera,
-                &draw_2d::TexturedQuad::unit(&self.pants[config.pants]),
-            );
-            geng.draw_2d(
-                framebuffer,
-                &camera,
-                &draw_2d::TexturedQuad::unit(&self.coat[config.coat]),
-            );
+            if let Some(custom) = &config.custom {
+                geng.draw_2d(
+                    framebuffer,
+                    &camera,
+                    &draw_2d::TexturedQuad::unit(&self.custom[custom]),
+                );
+            } else {
+                geng.draw_2d(
+                    framebuffer,
+                    &camera,
+                    &draw_2d::TexturedQuad::unit(&self.body),
+                );
+                geng.draw_2d(
+                    framebuffer,
+                    &camera,
+                    &draw_2d::TexturedQuad::unit(&self.face[config.face]),
+                );
+                geng.draw_2d(
+                    framebuffer,
+                    &camera,
+                    &draw_2d::TexturedQuad::unit(&self.hat[config.hat]),
+                );
+                geng.draw_2d(
+                    framebuffer,
+                    &camera,
+                    &draw_2d::TexturedQuad::unit(&self.pants[config.pants]),
+                );
+                geng.draw_2d(
+                    framebuffer,
+                    &camera,
+                    &draw_2d::TexturedQuad::unit(&self.coat[config.coat]),
+                );
+            }
         }
         result
     }
