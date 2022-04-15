@@ -212,7 +212,7 @@ impl simple_net::Model for Model {
                             text.push_str(" - ");
                             text.push_str(&score.to_string());
                         }
-                        text.push_str("\n:extremeBoom:");
+                        text.push_str("\n<:extremeBoom:963122644373368832>");
                         send_activity(&text);
                         self.scores.clear();
                     }
