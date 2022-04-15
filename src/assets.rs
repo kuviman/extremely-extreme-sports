@@ -33,7 +33,7 @@ pub struct PlayerAssets {
     pub pants: Vec<ugli::Texture>,
     #[asset(range = "1..=4", path = "face/*.png")]
     pub face: Vec<ugli::Texture>,
-    #[asset(range = "1..=6", path = "equipment/*.png")]
+    #[asset(range = "1..=8", path = "equipment/*.png")]
     pub equipment: Vec<ugli::Texture>,
     pub body: ugli::Texture,
     #[asset(load_with = "load_custom(&geng, &base_path.join(\"custom.json\"))")]

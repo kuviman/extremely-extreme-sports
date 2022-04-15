@@ -70,7 +70,10 @@ impl Lobby {
             AABB::point(vec2(0.5, -0.4))
                 .extend_positive(vec2("play".len() as f32, 1.0) * size * 2.0),
         ];
-        if self.assets.player.custom.contains_key(&self.name) || self.name == "potkirland" {
+        if self.assets.player.custom.contains_key(&self.name)
+            || self.name == "potkirland"
+            || self.name == "jitspoe"
+        {
             result.push(
                 AABB::point(vec2(0.0, 1.3))
                     .extend_positive(vec2("secret".len() as f32, 1.0) * size * 1.0),
@@ -254,6 +257,16 @@ impl geng::State for Lobby {
                             }
                             if self.name == "wendel" {
                                 self.config.equipment = 5;
+                            }
+                            if self.name == "jared" {
+                                self.config.equipment = 6;
+                            }
+                            if self.name == "jitspoe" {
+                                self.config.equipment = 7;
+                                self.config.pants = 3;
+                                self.config.coat = 1;
+                                self.config.face = 3;
+                                self.config.hat = 0;
                             }
                         }
                         _ => unreachable!(),
