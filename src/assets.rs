@@ -25,11 +25,11 @@ impl geng::LoadAsset for Texture {
 
 #[derive(geng::Assets)]
 pub struct PlayerAssets {
-    #[asset(range = "1..=4", path = "coat/*.png")]
+    #[asset(range = "1..=5", path = "coat/*.png")]
     pub coat: Vec<ugli::Texture>,
     #[asset(range = "1..=4", path = "hat/*.png")]
     pub hat: Vec<ugli::Texture>,
-    #[asset(range = "1..=4", path = "pants/*.png")]
+    #[asset(range = "1..=5", path = "pants/*.png")]
     pub pants: Vec<ugli::Texture>,
     #[asset(range = "1..=4", path = "face/*.png")]
     pub face: Vec<ugli::Texture>,

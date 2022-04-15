@@ -6,8 +6,9 @@
 - [x] nickpea
 - [ ] basic milky
 - [ ] wendel
-- [ ] bogden
+- [x] bogden
 - [x] kimo
 - [x] nertsal
 - [ ] potkirland
 - [x] badcop
+- [x] jamjamem
