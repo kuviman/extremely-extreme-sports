@@ -103,7 +103,10 @@ impl simple_net::Model for Model {
 
     fn drop_player(&mut self, player_id: &Self::PlayerId) {
         if let Some(player) = self.players.remove(&player_id) {
-            send_activity(&format!("{} left the server", player.name));
+            send_activity(&format!(
+                "{} left the server :woman_tipping_hand:",
+                player.name
+            ));
         }
     }
 
@@ -115,7 +118,10 @@ impl simple_net::Model for Model {
                     return;
                 }
                 if self.players.get(&player_id).is_none() {
-                    send_activity(&format!("{} just joined the server", player.name));
+                    send_activity(&format!(
+                        "{} just joined the server :man_raising_hand:",
+                        player.name
+                    ));
                 }
                 self.players.insert(player);
             }
