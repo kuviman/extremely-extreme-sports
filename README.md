@@ -2,11 +2,13 @@
 
 MMO downhill racing game
 
+[watch the trailer](https://www.youtube.com/watch?v=aNpc3MlN1NY)
+
 A game originally made for [LudumDare 50](https://ldjam.com/events/ludum-dare/50/extremely-exteme-sports).
 
 This now contains post-jam updates. The jam version code can be seen at the `jam-version` [tag](https://github.com/kuviman/ld50/tree/jam-version).
 
-![cover](screenshots/cover.jpg).
+![cover](screenshots/cover.jpg)
 
 ## Play
 
