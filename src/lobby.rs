@@ -57,9 +57,15 @@ impl Lobby {
             player_id,
             model: Some(model),
             transition: None,
-            name: String::new(),
+            name: match autosave::load("player_name.txt") {
+                Some(name) => name,
+                None => String::new(),
+            },
             mouse: Vec2::ZERO,
-            config: PlayerConfig::random(&assets.player),
+            config: match autosave::load("player.json") {
+                Some(config) => config,
+                None => PlayerConfig::random(&assets.player),
+            },
         }
     }
     fn buttons(&self) -> Vec<AABB<f32>> {
@@ -217,6 +223,8 @@ impl Lobby {
             }
             _ => unreachable!(),
         }
+        autosave::save("player.json", &self.config);
+        autosave::save("player_name.txt", &self.name);
     }
 }
 
@@ -349,27 +357,30 @@ impl geng::State for Lobby {
 
     fn handle_event(&mut self, event: geng::Event) {
         match event {
-            geng::Event::KeyDown { key } => match key {
-                geng::Key::Space => {}
-                geng::Key::Backspace => {
-                    self.name.pop();
-                }
-                _ => {
-                    if self.name.len() < 15 {
-                        let c = format!("{:?}", key);
-                        let c = if c.len() == 1 {
-                            Some(c.to_lowercase().chars().next().unwrap())
-                        } else if let Some(c) = c.strip_prefix("Num") {
-                            Some(c.chars().next().unwrap())
-                        } else {
-                            None
-                        };
-                        if let Some(c) = c {
-                            self.name.push(c)
+            geng::Event::KeyDown { key } => {
+                match key {
+                    geng::Key::Space => {}
+                    geng::Key::Backspace => {
+                        self.name.pop();
+                    }
+                    _ => {
+                        if self.name.len() < 15 {
+                            let c = format!("{:?}", key);
+                            let c = if c.len() == 1 {
+                                Some(c.to_lowercase().chars().next().unwrap())
+                            } else if let Some(c) = c.strip_prefix("Num") {
+                                Some(c.chars().next().unwrap())
+                            } else {
+                                None
+                            };
+                            if let Some(c) = c {
+                                self.name.push(c)
+                            }
                         }
                     }
                 }
-            },
+                autosave::save("player_name.txt", &self.name);
+            }
             geng::Event::MouseDown {
                 position,
                 button: geng::MouseButton::Left,
