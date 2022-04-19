@@ -21,6 +21,9 @@ pub struct Particle {
 }
 
 pub struct Game {
+    framebuffer_size: Vec2<usize>,
+    touch_control: Option<Vec2<f32>>,
+    touches: usize,
     time: f32,
     volume: f64,
     explosion_time: Option<f32>,
@@ -54,6 +57,9 @@ impl Game {
         model: simple_net::Remote<Model>,
     ) -> Self {
         Self {
+            touches: 0,
+            touch_control: None,
+            framebuffer_size: vec2(1, 1),
             interpolated_players: default(),
             time: 0.0,
             volume: 0.5,
@@ -353,6 +359,53 @@ impl geng::State for Game {
                 }
                 _ => {}
             },
+            geng::Event::MouseDown {
+                position,
+                button: geng::MouseButton::Left,
+            } => {
+                self.touch_control = Some(position.map(|x| x as f32));
+                if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
+                    let my_player = self.players.get(&self.player_id).unwrap();
+                    if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
+                        self.model.send(Message::StartTheRace);
+                    }
+                }
+            }
+            geng::Event::TouchStart { touches } => {
+                self.touches = touches.len();
+                self.touch_control = Some(touches[0].position.map(|x| x as f32));
+                if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
+                    let my_player = self.players.get(&self.player_id).unwrap();
+                    if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
+                        self.model.send(Message::StartTheRace);
+                    }
+                }
+            }
+            geng::Event::TouchMove { touches } => {
+                self.touches = touches.len();
+                self.touch_control = Some(touches[0].position.map(|x| x as f32));
+            }
+            geng::Event::TouchEnd { touches } => {
+                if touches.is_empty() {
+                } else {
+                    self.touch_control = Some(touches[0].position.map(|x| x as f32));
+                }
+                if self.touches == 1 {
+                    self.touch_control = None;
+                }
+            }
+            geng::Event::MouseMove { position, .. } => {
+                if self
+                    .geng
+                    .window()
+                    .is_button_pressed(geng::MouseButton::Left)
+                {
+                    self.touch_control = Some(position.map(|x| x as f32));
+                }
+            }
+            geng::Event::MouseUp { .. } => {
+                self.touch_control = None;
+            }
             _ => {}
         }
     }
@@ -395,13 +448,26 @@ impl geng::State for Game {
         let mut sounds: Vec<(&[geng::Sound], Vec2<f32>)> = Vec::new();
 
         self.players.get_mut(&self.player_id).unwrap().input = 0.0;
+
+        let touch_control = if let Some(pos) = self.touch_control {
+            if pos.x < self.framebuffer_size.x as f32 / 2.0 {
+                -1.0
+            } else {
+                1.0
+            }
+        } else {
+            0.0
+        };
+
         if self.geng.window().is_key_pressed(geng::Key::A)
             || self.geng.window().is_key_pressed(geng::Key::Left)
+            || touch_control < 0.0
         {
             self.players.get_mut(&self.player_id).unwrap().input -= 1.0;
         }
         if self.geng.window().is_key_pressed(geng::Key::D)
             || self.geng.window().is_key_pressed(geng::Key::Right)
+            || touch_control > 0.0
         {
             self.players.get_mut(&self.player_id).unwrap().input += 1.0;
         }
@@ -419,10 +485,19 @@ impl geng::State for Game {
                     target_player = player;
                 }
             }
-            let target_center = vec2(
+            let mut target_center = vec2(
                 target_player.position.x * 0.3,
                 target_player.position.y + target_player.velocity.y * 0.3,
             );
+            let horizontal_fov =
+                self.camera.fov * self.framebuffer_size.x as f32 / self.framebuffer_size.y as f32;
+            let distance = target_player.position.x - target_center.x;
+            if distance > horizontal_fov / 2.0 - 5.0 {
+                target_center.x += distance - (horizontal_fov / 2.0 - 5.0);
+            }
+            if distance < -(horizontal_fov / 2.0 - 5.0) {
+                target_center.x -= -(horizontal_fov / 2.0 - 5.0) - distance;
+            }
             self.camera.center += (target_center - self.camera.center) * (1.0 - delta_time * 0.1);
 
             if model.tick != self.last_model_tick {
@@ -602,6 +677,7 @@ impl geng::State for Game {
         }
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
+        self.framebuffer_size = framebuffer.size();
         let model = self.model.get();
         let my_player = self
             .interpolated_players
