@@ -65,35 +65,42 @@ impl Lobby {
     fn buttons(&self) -> Vec<AABB<f32>> {
         if self.keyboard {
             let mut result = vec![];
-            let mut x = 0.0;
-            let mut y = 0.5;
-            let size = 0.1;
+            let mut initial_x = 0.0;
+            let mut initial_y = 0.5;
+            let mut size = 0.1;
+            if self.framebuffer_size.x < self.framebuffer_size.y {
+                initial_x = -1.25;
+                initial_y = -0.5;
+                size = 0.25;
+            }
+            let mut x = initial_x;
+            let mut y = initial_y;
             for _ in "1234567890".chars() {
                 result.push(AABB::point(vec2(x, y)).extend_positive(vec2(1.0, 1.0) * size));
                 x += size;
             }
-            x = 0.0;
+            x = initial_x;
             y -= size;
             for _ in "qwertyuiop".chars() {
                 result.push(AABB::point(vec2(x, y)).extend_positive(vec2(1.0, 1.0) * size));
                 x += size;
             }
-            x = 0.0;
+            x = initial_x;
             y -= size;
             for _ in "asdfghjkl".chars() {
                 result.push(AABB::point(vec2(x, y)).extend_positive(vec2(1.0, 1.0) * size));
                 x += size;
             }
-            x = 0.0;
+            x = initial_x;
             y -= size;
             for _ in "zxcvbnm".chars() {
                 result.push(AABB::point(vec2(x, y)).extend_positive(vec2(1.0, 1.0) * size));
                 x += size;
             }
-            x = 0.0;
+            x = initial_x;
             y -= size;
             result.push(
-                AABB::point(vec2(0.5, 0.7))
+                AABB::point(vec2(initial_x + 5.0 * size, initial_y + 2.0 * size))
                     .extend_positive(vec2("delete".len() as f32, 1.0) * size),
             );
             result
