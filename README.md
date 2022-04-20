@@ -20,4 +20,4 @@ Make sure to bring your friends!
 
 ## Join the community
 
-[Discord](https://discord.gg/jBcJjXMS)
+[Discord](https://discord.gg/DZaEMPpANY)
