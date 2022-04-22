@@ -70,6 +70,8 @@ Instead of tsunami we have an avalanche, and we go skiing, avoiding obstacle for
 
 So, the first thing to do is to make simple but fun gameplay. So, all there is is just pressing left or right to turn. To make it slightly more fun and closer to actual skiing, your turning speed is limited, and the turn does not affect your direction immediately. Instead, there is friction with the snow in the perpendicular direction of where your skis are facing, so you drift a bit before actually going the way you chose.
 
+![Early gameplay](early-gameplay.gif)
+
 Turning angle is limited to 45 degrees so you never stop completely, and the friction makes you slow down if you do turn. So if you want to be fast, you need to not turn as much as possible, which will improve your score by delaying the moment avalanche gets you, but also makes it harder to avoid obstacles.
 
 Spawning the obstacles is just done really quick by randomly spawning them on the track, making sure no two obstacles intersect each other. Obstacles' colliders, as well as players' are just circles so making this simple physics from scratch is very easy. When colliding with an obstacles, all I need to do is zero the speed along the normal of the collision.
@@ -81,6 +83,8 @@ As soon as I was happy enough with the gameplay, I started implementing the mult
 Since I use my own custom engine, I have moved some stuff for creating simple multiplayer games into it. The way it works is I have a struct that is being synchronized between the server and the client, and that struct is modified on the server when clients send messages. Then the server can also update it when it does the tick, although all that is happening on the server this time is the avalanche.
 
 So, your own character movement is completely calculated on your side, then messages are being sent to the server with your updated position, and thats basically it. The engine will send all the updates to all other clients.
+
+![rubberbanding](rubberbanding.gif)
 
 The only thing that I still have to do is the interpolation, since you will be receiving updates less often than your display refresh rate. This is done by maintaining two copies of all the players on the client - the "rendered" one and the "current" one. The current is what was last sent by the server, but also updated just as your own player until the next update arrives. And the rendered one is interpolating towards the current one so that it will become same in 300ms, which is supposed to be a high enough ping so it looks ok. This means that you actually see other people slightly behind their actual position, but, since you can not crash into other players, this should be unnoticeable.
 
