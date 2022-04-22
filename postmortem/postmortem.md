@@ -90,6 +90,8 @@ Thanks to all people who came to [my stream](https://www.twitch.tv/kuviman) duri
 
 I am **not** good at graphics. Anyway, I liked the hand-drawn style I did previously.
 
+![Monke Pizza](monke-pizza.png)
+
 But, this still took me a long time to draw, switching between PC and the drawing tablet all the time also was pretty annoying. So instead this time I tried to do something similar but on PC.
 
 Also, what I have learnt from the Circle Race is that I think if you do pixels you can get good looks with less details.
@@ -112,11 +114,15 @@ Music is also my weakness, but I know at least one way to do it - grab a guitar 
 
 ### Step 5. Character customization
 
-I really liked how the character customization worked in my LD 48 game - Dig World.
+I really liked how the character customization options in my LD 48 game - Dig World, even though the menu itself could be better.
+
+![Dig World customization](dig-world-customization.png)
 
 This time though I made something simpler since I was a bit tired at that point, but I think it is still a really cool and essential feature for the game that has multiplayer.
 
 You can choose 4 face options, 4 hats, 4 coats, 4 pants, and choose either skis or a snowboard.
+
+![Customization](customization.gif)
 
 ### Step 6. Emotes
 
@@ -126,9 +132,13 @@ I decided not to have an in-game chat, since it need more space on the screen an
 
 So, you can show some love with the heart emote, bm people with the LUL emote, and show thumbs up or thumbs down.
 
+![Emotes](emotes.gif)
+
 ### Step 7. Sleep
 
 Sleep is important. Although, now that I know the results I feel a little bad for not sleeping less. Out of 48 hours given, only 19 were spent on actual development.
+
+![Dev log](devlog.png)
 
 The code in the end was EXTREMELY bad spaghetti but hey, the job was done, we now have a working game.
 
