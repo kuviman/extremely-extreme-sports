@@ -100,7 +100,11 @@ So, lets do all the graphics in Paint, right? Well, I actually used [Paint.NET](
 
 Another good options would probably be [Aseprite](https://www.aseprite.org/), or it's open source fork [LibreSprite](https://libresprite.github.io), but I never tried them.
 
+![Tree history](tree-history.png)
+
 I struggled a lot with the trees, but I think they turned out ok, but for the other things I decided to spend less time since I still had other work to do, so most of the textures were made in less than 1 minute.
+
+![Custom font](custom-font.png)
 
 Also decided to draw a custom font this time, and I think the overall looks of the game is consistent and silly and charming enough, so I actually liked almost everything. There are some bad parts, like coats covering half of your face, but the style itself is something I will try to get better at and use more.
 
