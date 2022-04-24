@@ -138,7 +138,8 @@ pub struct Assets {
     pub boom_sound: geng::Sound,
     pub avalanche_sound: geng::Sound,
     pub spawn_sound: geng::Sound,
-    #[asset(path = "music.mp3")]
+    // #[asset(path = "music.mp3")]
+    #[asset(path = "LD-50.mp3")]
     pub music: geng::Sound,
 }
 
