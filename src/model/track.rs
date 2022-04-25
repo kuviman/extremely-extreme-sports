@@ -13,8 +13,8 @@ pub struct Track {
 }
 
 impl Track {
-    pub fn new(seed: i32) -> Self {
-        let mut rng = global_rng();
+    pub fn new(seed: u64) -> Self {
+        let mut rng = StdRng::seed_from_u64(seed);
         const TRACK_LEN: f32 = 1000.0;
         const OBSTACLES_DENSITY: f32 = 0.1;
         let list: Vec<String> = serde_json::from_reader(
