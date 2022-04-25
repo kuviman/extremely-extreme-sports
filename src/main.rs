@@ -486,20 +486,9 @@ impl geng::State for Game {
                     target_player = player;
                 }
             }
-            let mut target_center = vec2(
-                target_player.position.x * 0.3,
-                target_player.position.y + target_player.velocity.y * 0.3,
-            );
-            let horizontal_fov =
-                self.camera.fov * self.framebuffer_size.x as f32 / self.framebuffer_size.y as f32;
-            let distance = target_player.position.x - target_center.x;
-            if distance > horizontal_fov / 2.0 - 5.0 {
-                target_center.x += distance - (horizontal_fov / 2.0 - 5.0);
-            }
-            if distance < -(horizontal_fov / 2.0 - 5.0) {
-                target_center.x -= -(horizontal_fov / 2.0 - 5.0) - distance;
-            }
-            self.camera.center += (target_center - self.camera.center) * (1.0 - delta_time * 0.1);
+            let mut target_center = target_player.position + target_player.velocity * 0.5;
+            self.camera.center +=
+                (target_center - self.camera.center) * (3.0 * delta_time).min(1.0);
 
             if model.tick != self.last_model_tick {
                 self.last_model_tick = model.tick;
