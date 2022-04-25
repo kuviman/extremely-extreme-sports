@@ -18,6 +18,8 @@ pub struct Model {
     #[diff = "eq"]
     pub winner: Option<(String, f32)>,
     #[diff = "eq"]
+    pub highscores: HashMap<String, i32>,
+    #[diff = "eq"]
     pub scores: Vec<(String, i32)>,
 }
 
@@ -37,6 +39,14 @@ impl Model {
             players: default(),
             track: Track::new_from_env(),
             winner: None,
+            highscores: {
+                let path = std::path::Path::new("highscores.json");
+                if path.is_file() {
+                    serde_json::from_reader(std::fs::File::open(path).unwrap()).unwrap()
+                } else {
+                    default()
+                }
+            },
             scores: vec![],
         }
     }
@@ -135,6 +145,27 @@ impl simple_net::Model for Model {
                         }
                         text.push_str("\n<:extremeBoom:963122644373368832>");
                         discord::send_activity(&text);
+
+                        let current_highest_score =
+                            self.highscores.values().max().copied().unwrap_or(0);
+                        for (name, score) in &self.scores {
+                            let score = *score;
+                            if score > current_highest_score {
+                                discord::send_activity(&format!(
+                                    "New highscore of {} by {} <:extremeBoom:963122644373368832>",
+                                    score, name,
+                                ));
+                            }
+                            if self.highscores.get(name).copied().unwrap_or(0) < score {
+                                self.highscores.insert(name.clone(), score);
+                            }
+                        }
+                        serde_json::to_writer_pretty(
+                            std::fs::File::create("highscores.json").unwrap(),
+                            &self.highscores,
+                        )
+                        .unwrap();
+
                         self.scores.clear();
                     }
                 }
@@ -183,7 +214,7 @@ impl Player {
     pub const FRICTION: f32 = 5.0;
     pub const DOWNHILL_ACCELERATION: f32 = 5.0;
     pub const WALK_ACCELERATION: f32 = 20.0;
-    pub const CRASH_DECELERATION: f32 = 3.0;
+    pub const CRASH_DECELERATION: f32 = 10.0;
     pub fn update_walk(&mut self, delta_time: f32) {
         let target_speed = self.input * Self::MAX_WALK_SPEED;
         self.velocity.x +=
