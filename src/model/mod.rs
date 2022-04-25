@@ -36,7 +36,7 @@ impl Model {
             avalanche_position: None,
             avalanche_speed: Self::AVALANCHE_MIN_SPEED,
             players: default(),
-            track: Track::new(123), // global_rng().gen()),
+            track: Track::new_from_env(),
             winner: None,
             scores: vec![],
         }
@@ -122,7 +122,7 @@ impl simple_net::Model for Model {
                 }) {
                     self.avalanche_position = None;
                     self.avalanche_speed = Self::AVALANCHE_MIN_SPEED;
-                    // self.track = Track::new(global_rng().gen());
+                    self.track = Track::new_from_env();
                     if !self.scores.is_empty() {
                         self.scores.sort_by_key(|(_name, score)| -score);
                         let mut text = "Race results:".to_owned();

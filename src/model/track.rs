@@ -21,6 +21,13 @@ pub struct Track {
 }
 
 impl Track {
+    pub fn new_from_env() -> Self {
+        let seed = match std::env::var("SEED") {
+            Ok(seed) => seed.parse().unwrap(),
+            Err(_) => global_rng().gen(),
+        };
+        Self::new(seed)
+    }
     pub fn new(seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
         const TRACK_LEN: f32 = 1000.0;
