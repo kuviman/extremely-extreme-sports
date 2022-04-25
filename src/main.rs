@@ -2,6 +2,7 @@ use geng::net::simple as simple_net;
 use geng::prelude::*;
 
 mod assets;
+mod discord;
 mod font;
 mod lobby;
 mod model;

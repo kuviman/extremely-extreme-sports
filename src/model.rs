@@ -33,7 +33,7 @@ impl Model {
     const AVALANCHE_START: f32 = 30.0;
     const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
-        send_activity("Server started :green_circle:");
+        discord::send_activity("Server started :green_circle:");
         Self {
             tick: 0,
             next_id: 0,
@@ -60,27 +60,6 @@ pub enum Event {}
 
 pub const TICKS_PER_SECOND: f32 = 10.0;
 
-fn send_activity(text: &str) {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        println!("{}", text);
-        if let Ok(url) = std::env::var("DISCORD_ACTIVITY_WEBHOOK") {
-            let text = text.to_owned();
-            std::thread::spawn(move || {
-                let client = reqwest::blocking::Client::new();
-                #[derive(Serialize)]
-                struct Data {
-                    content: String,
-                }
-                let data = Data { content: text };
-                if let Err(e) = client.post(url).json(&data).send() {
-                    println!("{}", e);
-                }
-            });
-        }
-    }
-}
-
 impl simple_net::Model for Model {
     type PlayerId = Id;
     type Message = Message;
@@ -94,7 +73,7 @@ impl simple_net::Model for Model {
 
     fn drop_player(&mut self, player_id: &Self::PlayerId) {
         if let Some(player) = self.players.remove(&player_id) {
-            send_activity(&format!(
+            discord::send_activity(&format!(
                 "{} left the server :woman_tipping_hand:",
                 player.name
             ));
@@ -109,7 +88,7 @@ impl simple_net::Model for Model {
                     return;
                 }
                 if self.players.get(&player_id).is_none() {
-                    send_activity(&format!(
+                    discord::send_activity(&format!(
                         "{} just joined the server :man_raising_hand:",
                         player.name
                     ));
@@ -204,7 +183,7 @@ impl simple_net::Model for Model {
                             text.push_str(&score.to_string());
                         }
                         text.push_str("\n<:extremeBoom:963122644373368832>");
-                        send_activity(&text);
+                        discord::send_activity(&text);
                         self.scores.clear();
                     }
                 }
