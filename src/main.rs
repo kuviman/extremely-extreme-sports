@@ -726,13 +726,14 @@ impl geng::State for Game {
         };
 
         ugli::clear(framebuffer, Some(Color::WHITE), None);
+        let view_width = view_area.bounding_box().width();
         self.geng.draw_2d(
             framebuffer,
             &self.camera,
             &draw_2d::Quad::new(
-                AABB::<f32>::point(Vec2::ZERO)
-                    .extend_left(TRACK_WIDTH * 5.0)
-                    .extend_right(TRACK_WIDTH * 5.0)
+                AABB::<f32>::point(vec2(self.camera.center.x, 0.0))
+                    .extend_left(view_width)
+                    .extend_right(view_width)
                     .extend_up(100.0),
                 Color::rgb(145.0 / 255.0, 249.0 / 255.0, 1.0),
             ),
@@ -783,26 +784,27 @@ impl geng::State for Game {
         let c2 = Color::rgba(0.9, 0.9, 0.95, 0.0);
         let c1 = Color::rgba(0.9, 0.9, 0.95, 0.9);
 
-        self.geng.draw_2d(
-            framebuffer,
-            &self.camera,
-            &draw_2d::Quad::new(
-                AABB::point(vec2(TRACK_WIDTH, 0.0))
-                    .extend_right(TRACK_WIDTH * 5.0)
-                    .extend_up(self.camera.center.y - self.camera.fov),
-                c1,
-            ),
-        );
-        self.geng.draw_2d(
-            framebuffer,
-            &self.camera,
-            &draw_2d::Quad::new(
-                AABB::point(vec2(-TRACK_WIDTH, 0.0))
-                    .extend_right(-TRACK_WIDTH * 5.0)
-                    .extend_up(self.camera.center.y - self.camera.fov),
-                c1,
-            ),
-        );
+        // TODO: outside border
+        // self.geng.draw_2d(
+        //     framebuffer,
+        //     &self.camera,
+        //     &draw_2d::Quad::new(
+        //         AABB::point(vec2(TRACK_WIDTH, 0.0))
+        //             .extend_right(TRACK_WIDTH * 5.0)
+        //             .extend_up(self.camera.center.y - self.camera.fov),
+        //         c1,
+        //     ),
+        // );
+        // self.geng.draw_2d(
+        //     framebuffer,
+        //     &self.camera,
+        //     &draw_2d::Quad::new(
+        //         AABB::point(vec2(-TRACK_WIDTH, 0.0))
+        //             .extend_right(-TRACK_WIDTH * 5.0)
+        //             .extend_up(self.camera.center.y - self.camera.fov),
+        //         c1,
+        //     ),
+        // );
         if true {
             self.geng.draw_2d(
                 framebuffer,
