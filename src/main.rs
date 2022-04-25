@@ -556,29 +556,7 @@ impl geng::State for Game {
                 self.players.get_mut(&self.player_id).unwrap().respawn();
             }
             for player in &mut self.players {
-                let idx = match model
-                    .track
-                    .shape
-                    .binary_search_by_key(&r32(-player.position.y), |point| r32(-point.y))
-                {
-                    Ok(idx) => idx,
-                    Err(idx) => idx - 1,
-                };
-                fn lerp(a: f32, b: f32, t: f32) -> f32 {
-                    a + (b - a) * t
-                }
-                let left = lerp(
-                    model.track.shape[idx].left,
-                    model.track.shape[idx + 1].left,
-                    (player.position.y - model.track.shape[idx].y)
-                        / (model.track.shape[idx + 1].y - model.track.shape[idx].y),
-                );
-                let right = lerp(
-                    model.track.shape[idx].right,
-                    model.track.shape[idx + 1].right,
-                    (player.position.y - model.track.shape[idx].y)
-                        / (model.track.shape[idx + 1].y - model.track.shape[idx].y),
-                );
+                let (left, right) = model.track.at(player.position.y);
                 if !player.is_riding {
                     player.update_walk(delta_time);
                 } else {

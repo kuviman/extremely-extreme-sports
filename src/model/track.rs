@@ -31,6 +31,9 @@ impl Track {
     pub fn new(seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
         const TRACK_LEN: f32 = 1000.0;
+        const TRACK_WIDTH: f32 = 20.0;
+        const SAFE_MIDDLE: f32 = 5.0;
+        const OBSTACLES_DENSITY: f32 = 0.2;
 
         let shape = {
             let mut shape = Vec::new();
@@ -45,7 +48,7 @@ impl Track {
                 right.push(mid + TRACK_WIDTH);
                 const DELTA: f32 = 10.0;
                 y += DELTA;
-                mid += rng.gen_range(-1.0..=1.0) * DELTA;
+                mid += rng.gen_range(-1.0..=1.0) * DELTA * 1.0;
             }
             let n = ys.len();
             let left = CardinalSpline::new(
@@ -84,7 +87,6 @@ impl Track {
             shape
         };
 
-        const OBSTACLES_DENSITY: f32 = 0.1;
         let list: Vec<String> = serde_json::from_reader(
             std::fs::File::open(static_path().join("obstacles.json")).unwrap(),
         )
@@ -106,9 +108,12 @@ impl Track {
                 .unwrap()
                 .0;
             let radius = obstacle_options[index].1.hitbox_radius / 20.0;
-            let w = TRACK_WIDTH - radius;
-            let x = rng.gen_range(-w..w);
             let y = rng.gen_range(-TRACK_LEN..-Model::SPAWN_AREA);
+            let (shape_left, shape_right) = Self::at_shape(&shape, y);
+            let x = rng.gen_range(shape_left + radius..shape_right - radius);
+            if (x - (shape_left + shape_right) / 2.0).abs() < SAFE_MIDDLE {
+                continue 'obstacles;
+            }
             let position = vec2(x, y);
             for obstacle in &obstacles {
                 if (obstacle.position - position).len() < radius + obstacle.radius {
@@ -123,5 +128,29 @@ impl Track {
         }
         obstacles.sort_by_key(|o| -r32(o.position.y));
         Self { shape, obstacles }
+    }
+    fn at_shape(shape: &Vec<ShapePoint>, y: f32) -> (f32, f32) {
+        let idx = match shape.binary_search_by_key(&r32(-y), |point| r32(-point.y)) {
+            Ok(idx) => idx,
+            Err(idx) => idx - 1,
+        }
+        .min(shape.len() - 2);
+        fn lerp(a: f32, b: f32, t: f32) -> f32 {
+            a + (b - a) * t
+        }
+        let left = lerp(
+            shape[idx].left,
+            shape[idx + 1].left,
+            (y - shape[idx].y) / (shape[idx + 1].y - shape[idx].y),
+        );
+        let right = lerp(
+            shape[idx].right,
+            shape[idx + 1].right,
+            (y - shape[idx].y) / (shape[idx + 1].y - shape[idx].y),
+        );
+        (left, right)
+    }
+    pub fn at(&self, y: f32) -> (f32, f32) {
+        Self::at_shape(&self.shape, y)
     }
 }
