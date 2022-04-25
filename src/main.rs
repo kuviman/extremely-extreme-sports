@@ -556,9 +556,13 @@ impl geng::State for Game {
                 self.players.get_mut(&self.player_id).unwrap().respawn();
             }
             for player in &mut self.players {
-                let (left, right) = model.track.at(player.position.y);
+                let shape_point = model.track.at(player.position.y);
                 if !player.is_riding {
                     player.update_walk(delta_time);
+                    player.position.x = player.position.x.clamp(
+                        shape_point.safe_left + player.radius,
+                        shape_point.safe_right - player.radius,
+                    );
                 } else {
                     player.update_riding(delta_time);
                     for obstacle in &model.track.obstacles {
@@ -574,8 +578,8 @@ impl geng::State for Game {
                             }
                         }
                     }
-                    if player.position.x < left + player.radius
-                        || player.position.x > right - player.radius
+                    if player.position.x < shape_point.left + player.radius
+                        || player.position.x > shape_point.right - player.radius
                     {
                         // if player.position.x.abs() > TRACK_WIDTH - player.radius {
                         if !player.crashed {
@@ -591,11 +595,11 @@ impl geng::State for Game {
                             }
                         }
                     }
+                    player.position.x = player.position.x.clamp(
+                        shape_point.left + player.radius,
+                        shape_point.right - player.radius,
+                    );
                 }
-                player.position.x = player
-                    .position
-                    .x
-                    .clamp(left + player.radius, right - player.radius);
             }
             self.next_particle -= delta_time;
             while self.next_particle < 0.0 {
@@ -634,7 +638,8 @@ impl geng::State for Game {
                     for _ in 0..10 {
                         self.particles.push(Particle {
                             i_pos: vec2(
-                                global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH),
+                                self.camera.center.x
+                                    + global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH),
                                 pos + global_rng().gen_range(-3.0..=0.0),
                             ),
                             i_vel: vec2(
@@ -805,6 +810,41 @@ impl geng::State for Game {
         //         c1,
         //     ),
         // );
+
+        self.geng.draw_2d(
+            framebuffer,
+            &self.camera,
+            &draw_2d::Chain::new(
+                Chain::new(
+                    model
+                        .track
+                        .shape
+                        .iter()
+                        .map(|point| vec2(point.safe_left, point.y))
+                        .collect(),
+                ),
+                0.1,
+                Color::rgba(0.0, 0.0, 0.0, 0.3),
+                0,
+            ),
+        );
+        self.geng.draw_2d(
+            framebuffer,
+            &self.camera,
+            &draw_2d::Chain::new(
+                Chain::new(
+                    model
+                        .track
+                        .shape
+                        .iter()
+                        .map(|point| vec2(point.safe_right, point.y))
+                        .collect(),
+                ),
+                0.1,
+                Color::rgba(0.0, 0.0, 0.0, 0.3),
+                0,
+            ),
+        );
         if true {
             self.geng.draw_2d(
                 framebuffer,
@@ -968,19 +1008,19 @@ impl geng::State for Game {
                 &self.camera,
                 &draw_2d::Polygon::new_gradient(vec![
                     draw_2d::ColoredVertex {
-                        a_pos: vec2(-TRACK_WIDTH * 5.0, position - 3.0),
+                        a_pos: vec2(self.camera.center.x - view_width, position - 3.0),
                         a_color: c2,
                     },
                     draw_2d::ColoredVertex {
-                        a_pos: vec2(-TRACK_WIDTH * 5.0, position),
+                        a_pos: vec2(self.camera.center.x - view_width, position),
                         a_color: c1,
                     },
                     draw_2d::ColoredVertex {
-                        a_pos: vec2(TRACK_WIDTH * 5.0, position),
+                        a_pos: vec2(self.camera.center.x + view_width, position),
                         a_color: c1,
                     },
                     draw_2d::ColoredVertex {
-                        a_pos: vec2(TRACK_WIDTH * 5.0, position - 3.0),
+                        a_pos: vec2(self.camera.center.x + view_width, position - 3.0),
                         a_color: c2,
                     },
                 ]),
@@ -989,7 +1029,7 @@ impl geng::State for Game {
                 framebuffer,
                 &self.camera,
                 &draw_2d::Quad::new(
-                    AABB::point(vec2(0.0, position))
+                    AABB::point(vec2(self.camera.center.x, position))
                         .extend_left(TRACK_WIDTH * 5.0)
                         .extend_right(TRACK_WIDTH * 5.0)
                         .extend_up(100.0),

@@ -12,6 +12,8 @@ pub struct ShapePoint {
     pub y: f32,
     pub left: f32,
     pub right: f32,
+    pub safe_left: f32,
+    pub safe_right: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -30,23 +32,29 @@ impl Track {
     }
     pub fn new(seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
-        const TRACK_LEN: f32 = 1000.0;
-        const TRACK_WIDTH: f32 = 20.0;
+        const TRACK_LEN: f32 = 1500.0;
+        const TRACK_WIDTH: f32 = 30.0;
         const SAFE_MIDDLE: f32 = 5.0;
         const OBSTACLES_DENSITY: f32 = 0.2;
+        const DISTANCE_BETWEEN_OBSTACLES: f32 = 0.5;
+        const SPAWN_AREA: f32 = 10.0;
+        const SPAWN_WIDTH: f32 = 10.0;
 
         let shape = {
             let mut shape = Vec::new();
-            let mut y = 0.0;
+            let mut y = SPAWN_AREA;
             let mut left = Vec::new();
             let mut right = Vec::new();
             let mut ys = Vec::new();
+            left.push(-SPAWN_WIDTH);
+            right.push(SPAWN_WIDTH);
+            ys.push(0.0);
             let mut mid = 0.0;
             while y < TRACK_LEN {
                 ys.push(y);
                 left.push(mid - TRACK_WIDTH);
                 right.push(mid + TRACK_WIDTH);
-                const DELTA: f32 = 10.0;
+                const DELTA: f32 = 20.0;
                 y += DELTA;
                 mid += rng.gen_range(-1.0..=1.0) * DELTA * 1.0;
             }
@@ -77,10 +85,16 @@ impl Track {
                     let left = left.get(i as f32 / N as f32);
                     let right = right.get(i as f32 / N as f32);
                     assert_eq!(left.y, right.y);
+                    let y = -left.y;
+                    let left = left.x;
+                    let right = right.x;
+                    let mid = (left + right) / 2.0;
                     shape.push(ShapePoint {
-                        y: -left.y,
-                        left: left.x,
-                        right: right.x,
+                        y,
+                        left,
+                        right,
+                        safe_left: mid - SAFE_MIDDLE,
+                        safe_right: mid + SAFE_MIDDLE,
                     });
                 }
             }
@@ -108,15 +122,17 @@ impl Track {
                 .unwrap()
                 .0;
             let radius = obstacle_options[index].1.hitbox_radius / 20.0;
-            let y = rng.gen_range(-TRACK_LEN..-Model::SPAWN_AREA);
-            let (shape_left, shape_right) = Self::at_shape(&shape, y);
-            let x = rng.gen_range(shape_left + radius..shape_right - radius);
-            if (x - (shape_left + shape_right) / 2.0).abs() < SAFE_MIDDLE {
+            let y = rng.gen_range(-TRACK_LEN..0.0);
+            let shape_point = Self::at_shape(&shape, y);
+            let x = rng.gen_range(shape_point.left + radius..shape_point.right - radius);
+            if x + radius > shape_point.safe_left && x - radius < shape_point.safe_right {
                 continue 'obstacles;
             }
             let position = vec2(x, y);
             for obstacle in &obstacles {
-                if (obstacle.position - position).len() < radius + obstacle.radius {
+                if (obstacle.position - position).len()
+                    < radius + obstacle.radius + DISTANCE_BETWEEN_OBSTACLES
+                {
                     continue 'obstacles;
                 }
             }
@@ -129,7 +145,7 @@ impl Track {
         obstacles.sort_by_key(|o| -r32(o.position.y));
         Self { shape, obstacles }
     }
-    fn at_shape(shape: &Vec<ShapePoint>, y: f32) -> (f32, f32) {
+    fn at_shape(shape: &Vec<ShapePoint>, y: f32) -> ShapePoint {
         let idx = match shape.binary_search_by_key(&r32(-y), |point| r32(-point.y)) {
             Ok(idx) => idx,
             Err(idx) => idx - 1,
@@ -148,9 +164,25 @@ impl Track {
             shape[idx + 1].right,
             (y - shape[idx].y) / (shape[idx + 1].y - shape[idx].y),
         );
-        (left, right)
+        let safe_left = lerp(
+            shape[idx].safe_left,
+            shape[idx + 1].safe_left,
+            (y - shape[idx].y) / (shape[idx + 1].y - shape[idx].y),
+        );
+        let safe_right = lerp(
+            shape[idx].safe_right,
+            shape[idx + 1].safe_right,
+            (y - shape[idx].y) / (shape[idx + 1].y - shape[idx].y),
+        );
+        ShapePoint {
+            y,
+            left,
+            right,
+            safe_left,
+            safe_right,
+        }
     }
-    pub fn at(&self, y: f32) -> (f32, f32) {
+    pub fn at(&self, y: f32) -> ShapePoint {
         Self::at_shape(&self.shape, y)
     }
 }

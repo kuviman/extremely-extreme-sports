@@ -27,7 +27,6 @@ impl Model {
     pub const AVALANCHE_ACCELERATION: f32 =
         (Self::AVALANCHE_MAX_SPEED - Self::AVALANCHE_MIN_SPEED) / 60.0;
     const AVALANCHE_START: f32 = 30.0;
-    const SPAWN_AREA: f32 = 15.0;
     pub fn new() -> Self {
         discord::send_activity("Server started :green_circle:");
         Self {
