@@ -1,14 +1,10 @@
 use super::*;
 
-pub type Id = i64;
+mod track;
 
-#[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
-pub struct Obstacle {
-    pub id: Id,
-    pub index: usize,
-    pub radius: f32,
-    pub position: Vec2<f32>,
-}
+pub use track::*;
+
+pub type Id = i64;
 
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
 pub struct Model {
@@ -18,7 +14,7 @@ pub struct Model {
     pub avalanche_speed: f32,
     pub players: Collection<Player>,
     #[diff = "eq"]
-    pub obstacles: Vec<Obstacle>,
+    pub track: Track,
     #[diff = "eq"]
     pub winner: Option<(String, f32)>,
     #[diff = "eq"]
@@ -40,7 +36,7 @@ impl Model {
             avalanche_position: None,
             avalanche_speed: Self::AVALANCHE_MIN_SPEED,
             players: default(),
-            obstacles: default(),
+            track: Track::new(global_rng().gen()),
             winner: None,
             scores: vec![],
         }
@@ -107,49 +103,6 @@ impl simple_net::Model for Model {
                     }
                     self.scores.clear();
                     self.avalanche_position = Some(Self::AVALANCHE_START);
-                    const TRACK_LEN: f32 = 1000.0;
-                    const OBSTACLES_DENSITY: f32 = 0.1;
-                    let list: Vec<String> = serde_json::from_reader(
-                        std::fs::File::open(static_path().join("obstacles.json")).unwrap(),
-                    )
-                    .unwrap();
-                    let obstacles: Vec<(usize, ObstacleConfig)> = list
-                        .into_iter()
-                        .map(|path| {
-                            serde_json::from_reader(
-                                std::fs::File::open(static_path().join(format!("{}.json", path)))
-                                    .unwrap(),
-                            )
-                            .unwrap()
-                        })
-                        .enumerate()
-                        .collect();
-                    'obstacles: for _ in 0..(TRACK_LEN * TRACK_WIDTH * OBSTACLES_DENSITY) as usize {
-                        let index = obstacles
-                            .choose_weighted(&mut global_rng(), |(_, obstacle)| {
-                                obstacle.spawn_weight
-                            })
-                            .unwrap()
-                            .0;
-                        let radius = obstacles[index].1.hitbox_radius / 20.0;
-                        let w = TRACK_WIDTH - radius;
-                        let x = global_rng().gen_range(-w..w);
-                        let y = global_rng().gen_range(-TRACK_LEN..-Self::SPAWN_AREA);
-                        let position = vec2(x, y);
-                        for obstacle in &self.obstacles {
-                            if (obstacle.position - position).len() < radius + obstacle.radius {
-                                continue 'obstacles;
-                            }
-                        }
-                        self.obstacles.push(Obstacle {
-                            id: self.next_id,
-                            index,
-                            radius,
-                            position,
-                        });
-                        self.next_id += 1;
-                    }
-                    self.obstacles.sort_by_key(|o| -r32(o.position.y));
                 }
             }
         }
@@ -169,8 +122,7 @@ impl simple_net::Model for Model {
                 }) {
                     self.avalanche_position = None;
                     self.avalanche_speed = Self::AVALANCHE_MIN_SPEED;
-                    self.obstacles.clear();
-
+                    self.track = Track::new(global_rng().gen());
                     if !self.scores.is_empty() {
                         self.scores.sort_by_key(|(_name, score)| -score);
                         let mut text = "Race results:".to_owned();

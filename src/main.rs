@@ -571,7 +571,7 @@ impl geng::State for Game {
                     player.update_walk(delta_time);
                 } else {
                     player.update_riding(delta_time);
-                    for obstacle in &model.obstacles {
+                    for obstacle in &model.track.obstacles {
                         let delta_pos = player.position - obstacle.position;
                         let peneration = player.radius + obstacle.radius - delta_pos.len();
                         if peneration > 0.0 {
@@ -891,7 +891,7 @@ impl geng::State for Game {
             );
         }
         if true || self.players.get(&self.player_id).unwrap().is_riding {
-            for obstacle in &model.obstacles {
+            for obstacle in &model.track.obstacles {
                 if !in_view(obstacle.position) {
                     continue;
                 }
@@ -917,7 +917,7 @@ impl geng::State for Game {
         }
 
         if true || self.players.get(&self.player_id).unwrap().is_riding {
-            for obstacle in &model.obstacles {
+            for obstacle in &model.track.obstacles {
                 if !in_view(obstacle.position) {
                     continue;
                 }
