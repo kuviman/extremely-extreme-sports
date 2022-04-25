@@ -1102,25 +1102,10 @@ fn main() {
                 let geng = geng.clone();
                 move |assets| {
                     let mut assets = assets.expect("Failed to load assets");
-                    assets.border.set_filter(ugli::Filter::Nearest);
                     assets.border.set_wrap_mode(ugli::WrapMode::Repeat);
-                    assets.background.set_filter(ugli::Filter::Nearest);
-                    assets.detonator.set_filter(ugli::Filter::Nearest);
-                    assets.detonator2.set_filter(ugli::Filter::Nearest);
-                    assets.detonate_text.set_filter(ugli::Filter::Nearest);
-                    assets.spectating_text.set_filter(ugli::Filter::Nearest);
-                    assets.ava_warning.set_filter(ugli::Filter::Nearest);
-                    assets.boom.set_filter(ugli::Filter::Nearest);
-                    assets.spawn.set_filter(ugli::Filter::Nearest);
                     assets.ride_sound.looped = true;
                     assets.avalanche_sound.looped = true;
                     assets.music.looped = true;
-                    for t in &mut assets.player.equipment {
-                        t.set_filter(ugli::Filter::Nearest);
-                    }
-                    for t in &mut assets.emotes {
-                        t.set_filter(ugli::Filter::Nearest);
-                    }
                     Lobby::new(&geng, &Rc::new(assets), player_id, model)
                 }
             },

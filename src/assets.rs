@@ -1,7 +1,20 @@
 use super::*;
 
-#[derive(Deref)]
-pub struct Texture(#[deref] ugli::Texture);
+#[derive(Deref, DerefMut)]
+pub struct Texture(ugli::Texture);
+
+impl ugli::AsUniform for Texture {
+    type Uniform = ugli::Texture;
+    fn as_uniform(&self) -> &Self::Uniform {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<ugli::Texture> for Texture {
+    fn borrow(&self) -> &ugli::Texture {
+        &self.0
+    }
+}
 
 impl std::borrow::Borrow<ugli::Texture> for &'_ Texture {
     fn borrow(&self) -> &ugli::Texture {
@@ -9,15 +22,17 @@ impl std::borrow::Borrow<ugli::Texture> for &'_ Texture {
     }
 }
 
+impl From<ugli::Texture> for Texture {
+    fn from(mut texture: ugli::Texture) -> Self {
+        texture.set_filter(ugli::Filter::Nearest);
+        Self(texture)
+    }
+}
+
 impl geng::LoadAsset for Texture {
     fn load(geng: &Geng, path: &std::path::Path) -> geng::AssetFuture<Self> {
         let texture = ugli::Texture::load(geng, path);
-        async move {
-            let mut texture = texture.await?;
-            texture.set_filter(ugli::Filter::Nearest);
-            Ok(Self(texture))
-        }
-        .boxed_local()
+        async move { Ok(texture.await?.into()) }.boxed_local()
     }
 
     const DEFAULT_EXT: Option<&'static str> = Some("png");
@@ -26,41 +41,39 @@ impl geng::LoadAsset for Texture {
 #[derive(geng::Assets)]
 pub struct PlayerAssets {
     #[asset(range = "1..=5", path = "coat/*.png")]
-    pub coat: Vec<ugli::Texture>,
+    pub coat: Vec<Texture>,
     #[asset(range = "1..=4", path = "hat/*.png")]
-    pub hat: Vec<ugli::Texture>,
+    pub hat: Vec<Texture>,
     #[asset(range = "1..=5", path = "pants/*.png")]
-    pub pants: Vec<ugli::Texture>,
+    pub pants: Vec<Texture>,
     #[asset(range = "1..=4", path = "face/*.png")]
-    pub face: Vec<ugli::Texture>,
+    pub face: Vec<Texture>,
     #[asset(range = "1..=8", path = "equipment/*.png")]
-    pub equipment: Vec<ugli::Texture>,
-    pub body: ugli::Texture,
+    pub equipment: Vec<Texture>,
+    pub body: Texture,
     #[asset(load_with = "load_custom(&geng, &base_path.join(\"custom.json\"))")]
-    pub custom: HashMap<String, ugli::Texture>,
+    pub custom: HashMap<String, Texture>,
 }
 
 async fn load_custom(
     geng: &Geng,
     path: &std::path::Path,
-) -> anyhow::Result<HashMap<String, ugli::Texture>> {
+) -> anyhow::Result<HashMap<String, Texture>> {
     let json: String = geng::LoadAsset::load(geng, path).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
     let mut result = HashMap::new();
     for name in list {
-        let mut texture: ugli::Texture =
+        let texture =
             geng::LoadAsset::load(geng, &path.parent().unwrap().join(format!("{name}.png")))
                 .await?;
-        texture.set_filter(ugli::Filter::Nearest);
         result.insert(name, texture);
     }
     Ok(result)
 }
 
 impl PlayerAssets {
-    pub fn assemble(&self, geng: &Geng, config: &PlayerConfig) -> ugli::Texture {
+    pub fn assemble(&self, geng: &Geng, config: &PlayerConfig) -> Texture {
         let mut result = ugli::Texture::new_uninitialized(geng.ugli(), self.coat[0].size());
-        result.set_filter(ugli::Filter::Nearest);
         {
             let mut framebuffer = ugli::Framebuffer::new_color(
                 geng.ugli(),
@@ -107,7 +120,7 @@ impl PlayerAssets {
                 );
             }
         }
-        result
+        result.into()
     }
 }
 
@@ -118,23 +131,23 @@ pub struct Assets {
     pub obstacles: Vec<ObstacleAssets>,
     pub texture_program: ugli::Program,
     pub shadow: ugli::Program,
-    pub particle: ugli::Texture,
+    pub particle: Texture,
     pub particle_program: ugli::Program,
-    pub border: ugli::Texture,
-    pub background: ugli::Texture,
-    pub detonator: ugli::Texture,
-    pub detonator2: ugli::Texture,
-    pub detonate_text: ugli::Texture,
-    pub spectating_text: ugli::Texture,
-    pub ava_warning: ugli::Texture,
+    pub border: Texture,
+    pub background: Texture,
+    pub detonator: Texture,
+    pub detonator2: Texture,
+    pub detonate_text: Texture,
+    pub spectating_text: Texture,
+    pub ava_warning: Texture,
     pub font: Font,
     #[asset(range = "1..=3", path = "crash_sound*.wav")]
     pub crash_sounds: Vec<geng::Sound>,
     #[asset(range = "1..=4", path = "emotes/*.png")]
-    pub emotes: Vec<ugli::Texture>,
+    pub emotes: Vec<Texture>,
     pub ride_sound: geng::Sound,
-    pub boom: ugli::Texture,
-    pub spawn: ugli::Texture,
+    pub boom: Texture,
+    pub spawn: Texture,
     pub boom_sound: geng::Sound,
     pub avalanche_sound: geng::Sound,
     pub spawn_sound: geng::Sound,
@@ -166,7 +179,7 @@ pub struct ObstacleConfig {
 
 pub struct ObstacleAssets {
     pub config: ObstacleConfig,
-    pub texture: ugli::Texture,
+    pub texture: Texture,
 }
 
 impl geng::LoadAsset for ObstacleAssets {
@@ -176,7 +189,7 @@ impl geng::LoadAsset for ObstacleAssets {
             path.set_extension("json");
             path
         });
-        let texture = <ugli::Texture as geng::LoadAsset>::load(geng, &{
+        let texture = <Texture as geng::LoadAsset>::load(geng, &{
             let mut path = path.to_owned();
             path.set_extension("png");
             path
@@ -186,7 +199,6 @@ impl geng::LoadAsset for ObstacleAssets {
                 config: config.await?,
                 texture: texture.await?,
             };
-            result.texture.set_filter(ugli::Filter::Nearest);
             result.config.hitbox_origin.y =
                 result.texture.size().y as f32 - 1.0 - result.config.hitbox_origin.y;
             Ok(result)
