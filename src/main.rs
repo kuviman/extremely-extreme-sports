@@ -567,6 +567,29 @@ impl geng::State for Game {
                 self.players.get_mut(&self.player_id).unwrap().respawn();
             }
             for player in &mut self.players {
+                let idx = match model
+                    .track
+                    .shape
+                    .binary_search_by_key(&r32(-player.position.y), |point| r32(-point.y))
+                {
+                    Ok(idx) => idx,
+                    Err(idx) => idx - 1,
+                };
+                fn lerp(a: f32, b: f32, t: f32) -> f32 {
+                    a + (b - a) * t
+                }
+                let left = lerp(
+                    model.track.shape[idx].left,
+                    model.track.shape[idx + 1].left,
+                    (player.position.y - model.track.shape[idx].y)
+                        / (model.track.shape[idx + 1].y - model.track.shape[idx].y),
+                );
+                let right = lerp(
+                    model.track.shape[idx].right,
+                    model.track.shape[idx + 1].right,
+                    (player.position.y - model.track.shape[idx].y)
+                        / (model.track.shape[idx + 1].y - model.track.shape[idx].y),
+                );
                 if !player.is_riding {
                     player.update_walk(delta_time);
                 } else {
@@ -584,7 +607,10 @@ impl geng::State for Game {
                             }
                         }
                     }
-                    if player.position.x.abs() > TRACK_WIDTH - player.radius {
+                    if player.position.x < left + player.radius
+                        || player.position.x > right - player.radius
+                    {
+                        // if player.position.x.abs() > TRACK_WIDTH - player.radius {
                         if !player.crashed {
                             player.crashed = true;
                             sounds.push((&self.assets.crash_sounds, player.position));
@@ -599,7 +625,10 @@ impl geng::State for Game {
                         }
                     }
                 }
-                player.position.x = player.position.x.clamp_abs(TRACK_WIDTH - player.radius);
+                player.position.x = player
+                    .position
+                    .x
+                    .clamp(left + player.radius, right - player.radius);
             }
             self.next_particle -= delta_time;
             while self.next_particle < 0.0 {
@@ -807,7 +836,42 @@ impl geng::State for Game {
                 c1,
             ),
         );
-        {
+        if true {
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::Chain::new(
+                    Chain::new(
+                        model
+                            .track
+                            .shape
+                            .iter()
+                            .map(|point| vec2(point.left, point.y))
+                            .collect(),
+                    ),
+                    0.1,
+                    Color::BLACK,
+                    0,
+                ),
+            );
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::Chain::new(
+                    Chain::new(
+                        model
+                            .track
+                            .shape
+                            .iter()
+                            .map(|point| vec2(point.right, point.y))
+                            .collect(),
+                    ),
+                    0.1,
+                    Color::BLACK,
+                    0,
+                ),
+            );
+        } else {
             let p = |x: f32, y: f32| draw_2d::TexturedVertex {
                 a_pos: vec2(TRACK_WIDTH + x * 2.0, y),
                 a_color: Color::WHITE,
