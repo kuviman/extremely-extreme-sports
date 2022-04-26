@@ -453,25 +453,19 @@ impl geng::State for Game {
 
             me.input = 0.0;
 
-            let touch_control = if let Some(pos) = self.touch_control {
-                if pos.x < self.framebuffer_size.x as f32 / 2.0 {
-                    -1.0
-                } else {
-                    1.0
-                }
-            } else {
-                0.0
-            };
+            if let Some(pos) = self.touch_control {
+                me.input += ((pos.x - self.framebuffer_size.x as f32 / 2.0)
+                    / (self.framebuffer_size.x as f32 / 4.0))
+                    .clamp(-1.0, 1.0);
+            }
 
             if self.geng.window().is_key_pressed(geng::Key::A)
                 || self.geng.window().is_key_pressed(geng::Key::Left)
-                || touch_control < 0.0
             {
                 me.input -= 1.0;
             }
             if self.geng.window().is_key_pressed(geng::Key::D)
                 || self.geng.window().is_key_pressed(geng::Key::Right)
-                || touch_control > 0.0
             {
                 me.input += 1.0;
             }

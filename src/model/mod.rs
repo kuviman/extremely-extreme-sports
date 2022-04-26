@@ -224,7 +224,8 @@ impl Player {
     }
     pub fn update_riding(&mut self, delta_time: f32) {
         if !self.crashed {
-            let target_rotation = (self.input * f32::PI).clamp_abs(Self::ROTATION_LIMIT);
+            let target_rotation =
+                (self.input * Self::ROTATION_LIMIT).clamp_abs(Self::ROTATION_LIMIT);
             self.rotation +=
                 (target_rotation - self.rotation).clamp_abs(Self::ROTATION_SPEED * delta_time);
             self.velocity.y += (-Self::MAX_SPEED - self.velocity.y)
