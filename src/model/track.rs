@@ -58,7 +58,8 @@ impl Track {
                 right.push(mid + TRACK_WIDTH);
                 const DELTA: f32 = 10.0;
                 y += DELTA;
-                mid += rng.gen_range(-1.0..=1.0) * DELTA * 1.0;
+                let var = rng.gen_range(0.0f32..=1.0).powf(0.5);
+                mid += if rng.gen_bool(0.5) { -1.0 } else { 1.0 } * var * DELTA * 1.2;
             }
             let n = ys.len();
             let left = CardinalSpline::new(
