@@ -371,9 +371,10 @@ impl geng::State for Game {
             } => {
                 self.touch_control = Some(position.map(|x| x as f32));
                 if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
-                    let my_player = self.players.get(&self.player_id).unwrap();
-                    if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
-                        self.model.send(Message::StartTheRace);
+                    if let Some(my_player) = self.players.get(&self.player_id) {
+                        if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
+                            self.model.send(Message::StartTheRace);
+                        }
                     }
                 }
             }
@@ -381,9 +382,10 @@ impl geng::State for Game {
                 self.touches = touches.len();
                 self.touch_control = Some(touches[0].position.map(|x| x as f32));
                 if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
-                    let my_player = self.players.get(&self.player_id).unwrap();
-                    if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
-                        self.model.send(Message::StartTheRace);
+                    if let Some(my_player) = self.players.get(&self.player_id) {
+                        if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
+                            self.model.send(Message::StartTheRace);
+                        }
                     }
                 }
             }
