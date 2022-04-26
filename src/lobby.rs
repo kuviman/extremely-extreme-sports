@@ -113,6 +113,10 @@ impl Lobby {
                 AABB::point(vec2(initial_x + 5.0 * size, initial_y + 2.0 * size))
                     .extend_positive(vec2("delete".len() as f32, 1.0) * size),
             );
+            result.push(
+                AABB::point(vec2(initial_x + 6.0 * size, initial_y + 4.0 * size))
+                    .extend_positive(vec2("back".len() as f32, 1.0) * size),
+            );
             result
         } else if self.customizer {
             let size = 0.1;
@@ -172,7 +176,16 @@ impl Lobby {
                     self.name.push(c);
                 }
             } else {
-                self.name.pop();
+                let index = index - "1234567890qwertyuiopasdfghjklzxcvbnm".len();
+                match index {
+                    0 => {
+                        self.name.pop();
+                    }
+                    1 => {
+                        self.keyboard = false;
+                    }
+                    _ => unreachable!(),
+                }
             }
         } else if self.customizer {
             // "hat", "face", "coat", "pants", "equipment"
@@ -484,7 +497,7 @@ impl geng::State for Lobby {
                     "1234567890qwertyuiopasdfghjklzxcvbnm"
                         .chars()
                         .map(|c| c.to_string())
-                        .chain(std::iter::once("delete".to_owned())),
+                        .chain(["delete", "back"].into_iter().map(|s| s.to_owned())),
                 ) {
                     let mut pos = button.bottom_left();
                     if button.contains(self.mouse)
