@@ -60,4 +60,4 @@ jobs:
           host: ${{ secrets.SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          script: systemctl --user restart ld50-server
+          script: systemctl --user restart ees
