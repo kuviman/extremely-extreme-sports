@@ -13,6 +13,7 @@ pub struct Lobby {
     config: PlayerConfig,
     keyboard: bool,
     customizer: bool,
+    leaderboard: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -68,6 +69,7 @@ impl Lobby {
                 None => PlayerConfig::random(&assets.player),
             },
             customizer: false,
+            leaderboard: false,
         }
     }
     fn buttons(&self) -> Vec<AABB<f32>> {
@@ -136,6 +138,11 @@ impl Lobby {
                 );
             }
             result
+        } else if self.leaderboard {
+            let size = 0.1;
+            let mut result = vec![AABB::point(vec2(0.0, -0.3))
+                .extend_symmetric(vec2("back".len() as f32, 1.0) * size)];
+            result
         } else {
             let size = 0.1;
             let mut result = vec![
@@ -143,10 +150,12 @@ impl Lobby {
                     .extend_positive(vec2("customize".len() as f32, 1.0) * size),
                 AABB::point(vec2(0.0, 0.4))
                     .extend_positive(vec2("play".len() as f32, 1.0) * size * 2.0),
-                AABB::point(vec2(0.0, 0.2))
+                AABB::point(vec2(0.0, 0.0))
                     .extend_positive(vec2("spectate".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.0, -0.2))
+                AABB::point(vec2(0.0, -0.3))
                     .extend_positive(vec2("join discord".len() as f32, 1.0) * size),
+                AABB::point(vec2(0.0, 0.2))
+                    .extend_positive(vec2("leaderboard".len() as f32, 1.0) * size),
             ];
             result
         }
@@ -227,6 +236,13 @@ impl Lobby {
                 _ => unreachable!(),
             }
             autosave::save("player.json", &self.config);
+        } else if self.leaderboard {
+            match index {
+                0 => {
+                    self.leaderboard = false;
+                }
+                _ => unreachable!(),
+            }
         } else {
             match index {
                 0 => {
@@ -277,6 +293,10 @@ impl Lobby {
                         open::that(DISCORD_LINK).unwrap();
                     }
                 }
+                4 => {
+                    //leader
+                    self.leaderboard = true;
+                }
                 _ => unreachable!(),
             }
         }
@@ -293,92 +313,100 @@ impl geng::State for Lobby {
 
         let buttons = self.buttons();
 
-        self.geng.draw_2d(
-            framebuffer,
-            &self.camera,
-            &draw_2d::TexturedQuad::unit(&self.assets.player.equipment[self.config.equipment])
-                .transform(Mat3::rotate(0.1))
-                .translate(vec2(-0.5, 1.0)),
-        );
-        self.geng.draw_2d(
-            framebuffer,
-            &self.camera,
-            &draw_2d::TexturedQuad::unit(&self.assets.player.assemble(&self.geng, &self.config))
-                .translate(vec2(-0.5, 0.0)),
-        );
+        if self.leaderboard {
+            self.assets.font.draw(
+                framebuffer,
+                &self.camera,
+                vec2(0.0, 1.2),
+                0.2,
+                "leaderboard",
+                0.5,
+                Color::GRAY,
+            );
+            if let Some(model) = &self.model {
+                let mut rows = Vec::new();
+                let model = model.get();
+                for (name, score) in &model.highscores {
+                    rows.push((name.clone(), *score));
+                }
+                rows.sort_by_key(|(name, score)| (-*score, name.clone()));
+                while rows.len() > 10 {
+                    rows.pop();
+                }
+                if !rows.iter().any(|(name, _score)| name == &self.name) {
+                    if let Some(&score) = model.highscores.get(&self.name) {
+                        rows.push((self.name.clone(), score));
+                    }
+                }
+                let mut y = 1.0;
+                let highlight = Color::rgb(0.5, 0.5, 1.0);
+                for (index, (name, score)) in rows.iter().enumerate() {
+                    if index == 10 {
+                        y -= 0.1;
+                    }
+                    let color = if *name == self.name {
+                        highlight
+                    } else {
+                        Color::WHITE
+                    };
+                    if index < 10 {
+                        self.assets.font.draw(
+                            framebuffer,
+                            &self.camera,
+                            vec2(-1.0, y),
+                            0.1,
+                            &(index + 1).to_string(),
+                            1.0,
+                            color,
+                        );
+                    }
+                    y -= 0.1;
+                }
+                let mut y = 1.0;
+                for (index, (name, score)) in rows.iter().enumerate() {
+                    if index == 10 {
+                        y -= 0.1;
+                    }
+                    let color = if *name == self.name {
+                        highlight
+                    } else {
+                        Color::WHITE
+                    };
+                    self.assets.font.draw(
+                        framebuffer,
+                        &self.camera,
+                        vec2(-0.9, y),
+                        0.1,
+                        name,
+                        0.0,
+                        color,
+                    );
+                    y -= 0.1;
+                }
+                let mut y = 1.0;
+                for (index, (name, score)) in rows.iter().enumerate() {
+                    if index == 10 {
+                        y -= 0.1;
+                    }
 
-        let c = if AABB::point(vec2(0.5, 1.1))
-            .extend_up(0.1)
-            .extend_left(2.0)
-            .extend_right(2.0)
-            .contains(self.mouse)
-        {
-            Some(Color::rgb(0.5, 0.5, 1.0))
-        } else {
-            None
-        };
-        if self.name.is_empty() {
-            self.assets.font.draw(
-                framebuffer,
-                &self.camera,
-                vec2(0.5, 1.1),
-                0.1,
-                "type your name",
-                0.5,
-                c.unwrap_or(Color::RED),
-            );
-        } else {
-            self.assets.font.draw(
-                framebuffer,
-                &self.camera,
-                vec2(0.5, 1.1),
-                0.1,
-                &self.name,
-                0.5,
-                c.unwrap_or(Color::WHITE),
-            );
-        }
-        if self.keyboard {
-            for (button, text) in buttons.into_iter().zip(
-                "1234567890qwertyuiopasdfghjklzxcvbnm"
-                    .chars()
-                    .map(|c| c.to_string())
-                    .chain(std::iter::once("delete".to_owned())),
-            ) {
-                let mut pos = button.bottom_left();
-                if button.contains(self.mouse)
-                    && self
-                        .geng
-                        .window()
-                        .is_button_pressed(geng::MouseButton::Left)
-                {
-                    pos.y -= button.height() * 0.2;
-                }
-                self.assets.font.draw(
-                    framebuffer,
-                    &self.camera,
-                    pos,
-                    button.height(),
-                    &text,
-                    0.0,
-                    if button.contains(self.mouse) {
-                        Color::rgb(0.5, 0.5, 1.0)
+                    let color = if *name == self.name {
+                        highlight
                     } else {
                         Color::WHITE
-                    },
-                );
+                    };
+                    self.assets.font.draw(
+                        framebuffer,
+                        &self.camera,
+                        vec2(1.0, y),
+                        0.1,
+                        &score.to_string(),
+                        1.0,
+                        color,
+                    );
+                    y -= 0.1;
+                }
             }
-        } else if self.customizer {
-            for (button, text) in buttons.into_iter().zip([
-                "hat",
-                "face",
-                "coat",
-                "pants",
-                "equipment",
-                "random",
-                "back",
-                "secret",
-            ]) {
+            for (button, text) in buttons.into_iter().zip(["back"]) {
                 let mut pos = button.bottom_left();
                 if button.contains(self.mouse)
                     && self
@@ -403,33 +431,149 @@ impl geng::State for Lobby {
                 );
             }
         } else {
-            for (button, text) in
-                buttons
-                    .into_iter()
-                    .zip(["customize", "play", "spectate", "join discord"])
+            // Draw player
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::TexturedQuad::unit(&self.assets.player.equipment[self.config.equipment])
+                    .transform(Mat3::rotate(0.1))
+                    .translate(vec2(-0.5, 1.0)),
+            );
+            self.geng.draw_2d(
+                framebuffer,
+                &self.camera,
+                &draw_2d::TexturedQuad::unit(
+                    &self.assets.player.assemble(&self.geng, &self.config),
+                )
+                .translate(vec2(-0.5, 0.0)),
+            );
+
+            let c = if AABB::point(vec2(0.5, 1.1))
+                .extend_up(0.1)
+                .extend_left(2.0)
+                .extend_right(2.0)
+                .contains(self.mouse)
             {
-                let mut pos = button.bottom_left();
-                if button.contains(self.mouse)
-                    && self
-                        .geng
-                        .window()
-                        .is_button_pressed(geng::MouseButton::Left)
-                {
-                    pos.y -= button.height() * 0.2;
-                }
+                Some(Color::rgb(0.5, 0.5, 1.0))
+            } else {
+                None
+            };
+            if self.name.is_empty() {
                 self.assets.font.draw(
                     framebuffer,
                     &self.camera,
-                    pos,
-                    button.height(),
-                    text,
-                    0.0,
-                    if button.contains(self.mouse) {
-                        Color::rgb(0.5, 0.5, 1.0)
-                    } else {
-                        Color::WHITE
-                    },
+                    vec2(0.5, 1.1),
+                    0.1,
+                    "type your name",
+                    0.5,
+                    c.unwrap_or(Color::RED),
                 );
+            } else {
+                self.assets.font.draw(
+                    framebuffer,
+                    &self.camera,
+                    vec2(0.5, 1.1),
+                    0.1,
+                    &self.name,
+                    0.5,
+                    c.unwrap_or(Color::WHITE),
+                );
+            }
+            if self.keyboard {
+                for (button, text) in buttons.into_iter().zip(
+                    "1234567890qwertyuiopasdfghjklzxcvbnm"
+                        .chars()
+                        .map(|c| c.to_string())
+                        .chain(std::iter::once("delete".to_owned())),
+                ) {
+                    let mut pos = button.bottom_left();
+                    if button.contains(self.mouse)
+                        && self
+                            .geng
+                            .window()
+                            .is_button_pressed(geng::MouseButton::Left)
+                    {
+                        pos.y -= button.height() * 0.2;
+                    }
+                    self.assets.font.draw(
+                        framebuffer,
+                        &self.camera,
+                        pos,
+                        button.height(),
+                        &text,
+                        0.0,
+                        if button.contains(self.mouse) {
+                            Color::rgb(0.5, 0.5, 1.0)
+                        } else {
+                            Color::WHITE
+                        },
+                    );
+                }
+            } else if self.customizer {
+                for (button, text) in buttons.into_iter().zip([
+                    "hat",
+                    "face",
+                    "coat",
+                    "pants",
+                    "equipment",
+                    "random",
+                    "back",
+                    "secret",
+                ]) {
+                    let mut pos = button.bottom_left();
+                    if button.contains(self.mouse)
+                        && self
+                            .geng
+                            .window()
+                            .is_button_pressed(geng::MouseButton::Left)
+                    {
+                        pos.y -= button.height() * 0.2;
+                    }
+                    self.assets.font.draw(
+                        framebuffer,
+                        &self.camera,
+                        pos,
+                        button.height(),
+                        text,
+                        0.0,
+                        if button.contains(self.mouse) {
+                            Color::rgb(0.5, 0.5, 1.0)
+                        } else {
+                            Color::WHITE
+                        },
+                    );
+                }
+            } else {
+                for (button, text) in buttons.into_iter().zip([
+                    "customize",
+                    "play",
+                    "spectate",
+                    "join discord",
+                    "leaderboard",
+                ]) {
+                    let mut pos = button.bottom_left();
+                    if button.contains(self.mouse)
+                        && self
+                            .geng
+                            .window()
+                            .is_button_pressed(geng::MouseButton::Left)
+                    {
+                        pos.y -= button.height() * 0.2;
+                    }
+                    self.assets.font.draw(
+                        framebuffer,
+                        &self.camera,
+                        pos,
+                        button.height(),
+                        text,
+                        0.0,
+                        if button.contains(self.mouse) {
+                            Color::rgb(0.5, 0.5, 1.0)
+                        } else {
+                            Color::WHITE
+                        },
+                    );
+                }
             }
         }
     }

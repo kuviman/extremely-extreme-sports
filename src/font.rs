@@ -23,7 +23,16 @@ impl Font {
             return;
         }
         let mut pos = pos;
-        pos.x -= size * align * text.len() as f32;
+        let mut width = 0.0;
+
+        for c in text.chars() {
+            if c == ' ' {
+                width += size;
+                continue;
+            }
+            width += size * 0.8;
+        }
+        pos.x -= width * align;
         self.geng.draw_2d(
             framebuffer,
             camera,
