@@ -12,6 +12,8 @@ use font::*;
 use lobby::*;
 use model::*;
 
+const DISCORD_LINK: &'static str = "https://discord.gg/DZaEMPpANY";
+
 #[derive(ugli::Vertex)]
 pub struct Particle {
     i_pos: Vec2<f32>,
@@ -1230,7 +1232,7 @@ impl Opt {
 }
 
 fn main() {
-    logger::init().unwrap();
+    // logger::init().unwrap();
     let opt: Opt = program_args::parse();
     let model_constructor = Model::new;
     let game_constructor = {

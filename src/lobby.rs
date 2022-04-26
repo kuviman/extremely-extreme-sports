@@ -12,6 +12,7 @@ pub struct Lobby {
     mouse: Vec2<f32>,
     config: PlayerConfig,
     keyboard: bool,
+    customizer: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -66,6 +67,7 @@ impl Lobby {
                 Some(config) => config,
                 None => PlayerConfig::random(&assets.player),
             },
+            customizer: false,
         }
     }
     fn buttons(&self) -> Vec<AABB<f32>> {
@@ -110,7 +112,7 @@ impl Lobby {
                     .extend_positive(vec2("delete".len() as f32, 1.0) * size),
             );
             result
-        } else {
+        } else if self.customizer {
             let size = 0.1;
             let mut result = vec![
                 AABB::point(vec2(0.0, 0.8)).extend_positive(vec2("hat".len() as f32, 1.0) * size),
@@ -122,7 +124,7 @@ impl Lobby {
                 AABB::point(vec2(-0.5, -0.2))
                     .extend_positive(vec2("random".len() as f32, 1.0) * size),
                 AABB::point(vec2(0.5, -0.4))
-                    .extend_positive(vec2("play".len() as f32, 1.0) * size * 2.0),
+                    .extend_positive(vec2("back".len() as f32, 1.0) * size * 2.0),
             ];
             if self.assets.player.custom.contains_key(&self.name)
                 || self.name == "potkirland"
@@ -133,6 +135,19 @@ impl Lobby {
                         .extend_positive(vec2("secret".len() as f32, 1.0) * size * 1.0),
                 );
             }
+            result
+        } else {
+            let size = 0.1;
+            let mut result = vec![
+                AABB::point(vec2(0.0, 0.8))
+                    .extend_positive(vec2("customize".len() as f32, 1.0) * size),
+                AABB::point(vec2(0.0, 0.4))
+                    .extend_positive(vec2("play".len() as f32, 1.0) * size * 2.0),
+                AABB::point(vec2(0.0, 0.2))
+                    .extend_positive(vec2("spectate".len() as f32, 1.0) * size),
+                AABB::point(vec2(0.0, -0.2))
+                    .extend_positive(vec2("join discord".len() as f32, 1.0) * size),
+            ];
             result
         }
     }
@@ -150,81 +165,121 @@ impl Lobby {
             } else {
                 self.name.pop();
             }
-            return;
+        } else if self.customizer {
+            // "hat", "face", "coat", "pants", "equipment"
+            match index {
+                0 => {
+                    self.config.hat += 1;
+                    self.config.hat %= 4; // self.assets.player.hat.len();
+                }
+                1 => {
+                    self.config.face += 1;
+                    self.config.face %= 4; //self.assets.player.face.len();
+                }
+                2 => {
+                    self.config.coat += 1;
+                    self.config.coat %= 4; // self.assets.player.coat.len();
+                }
+                3 => {
+                    self.config.pants += 1;
+                    self.config.pants %= 4; // self.assets.player.pants.len();
+                }
+                4 => {
+                    self.config.equipment += 1;
+                    self.config.equipment %= 2; // self.assets.player.equipment.len();
+                }
+                5 => {
+                    self.config = PlayerConfig::random(&self.assets.player);
+                }
+                6 => {
+                    self.customizer = false;
+                }
+                7 => {
+                    if self.assets.player.custom.contains_key(&self.name) {
+                        self.config.custom = Some(self.name.clone());
+                    }
+                    if self.name == "6fu" {
+                        self.config.equipment = 3;
+                    }
+                    if self.name == "kidgiraffe" {
+                        self.config.equipment = 2;
+                    }
+                    if self.name == "potkirland" {
+                        self.config.pants = 4;
+                        self.config.coat = 4;
+                        self.config.face = 0;
+                        self.config.hat = 3;
+                    }
+                    if self.name == "wendel" {
+                        self.config.equipment = 5;
+                    }
+                    if self.name == "jared" {
+                        self.config.equipment = 6;
+                    }
+                    if self.name == "jitspoe" {
+                        self.config.equipment = 7;
+                        self.config.pants = 3;
+                        self.config.coat = 1;
+                        self.config.face = 3;
+                        self.config.hat = 0;
+                    }
+                }
+                _ => unreachable!(),
+            }
+            autosave::save("player.json", &self.config);
+        } else {
+            match index {
+                0 => {
+                    // customize
+                    self.customizer = !self.customizer;
+                }
+                1 => {
+                    // play
+                    self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
+                        &self.geng,
+                        &self.assets,
+                        self.player_id,
+                        Some(if self.name.is_empty() {
+                            "unnamed".to_owned()
+                        } else {
+                            self.name.clone()
+                        }),
+                        Some(self.config.clone()),
+                        self.model.take().unwrap(),
+                        false,
+                    ))));
+                }
+                2 => {
+                    //spectate
+                    self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
+                        &self.geng,
+                        &self.assets,
+                        self.player_id,
+                        None,
+                        None,
+                        self.model.take().unwrap(),
+                        true,
+                    ))));
+                }
+                3 => {
+                    //discord
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        if let Ok(Some(w)) = web_sys::window()
+                            .unwrap()
+                            .open_with_url_and_target(DISCORD_LINK, "_blank")
+                        {
+                            w.focus();
+                        }
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        open::that(DISCORD_LINK).unwrap();
+                    }
+                }
+                _ => unreachable!(),
+            }
         }
-        // "hat", "face", "coat", "pants", "equipment"
-        match index {
-            0 => {
-                self.config.hat += 1;
-                self.config.hat %= 4; // self.assets.player.hat.len();
-            }
-            1 => {
-                self.config.face += 1;
-                self.config.face %= 4; //self.assets.player.face.len();
-            }
-            2 => {
-                self.config.coat += 1;
-                self.config.coat %= 4; // self.assets.player.coat.len();
-            }
-            3 => {
-                self.config.pants += 1;
-                self.config.pants %= 4; // self.assets.player.pants.len();
-            }
-            4 => {
-                self.config.equipment += 1;
-                self.config.equipment %= 2; // self.assets.player.equipment.len();
-            }
-            5 => {
-                self.config = PlayerConfig::random(&self.assets.player);
-            }
-            6 => {
-                self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
-                    &self.geng,
-                    &self.assets,
-                    self.player_id,
-                    Some(if self.name.is_empty() {
-                        "unnamed".to_owned()
-                    } else {
-                        self.name.clone()
-                    }),
-                    Some(self.config.clone()),
-                    self.model.take().unwrap(),
-                    false,
-                ))));
-            }
-            7 => {
-                if self.assets.player.custom.contains_key(&self.name) {
-                    self.config.custom = Some(self.name.clone());
-                }
-                if self.name == "6fu" {
-                    self.config.equipment = 3;
-                }
-                if self.name == "kidgiraffe" {
-                    self.config.equipment = 2;
-                }
-                if self.name == "potkirland" {
-                    self.config.pants = 4;
-                    self.config.coat = 4;
-                    self.config.face = 0;
-                    self.config.hat = 3;
-                }
-                if self.name == "wendel" {
-                    self.config.equipment = 5;
-                }
-                if self.name == "jared" {
-                    self.config.equipment = 6;
-                }
-                if self.name == "jitspoe" {
-                    self.config.equipment = 7;
-                    self.config.pants = 3;
-                    self.config.coat = 1;
-                    self.config.face = 3;
-                    self.config.hat = 0;
-                }
-            }
-            _ => unreachable!(),
-        }
-        autosave::save("player.json", &self.config);
         autosave::save("player_name.txt", &self.name);
     }
 }
@@ -283,7 +338,37 @@ impl geng::State for Lobby {
                 c.unwrap_or(Color::WHITE),
             );
         }
-        if !self.keyboard {
+        if self.keyboard {
+            for (button, text) in buttons.into_iter().zip(
+                "1234567890qwertyuiopasdfghjklzxcvbnm"
+                    .chars()
+                    .map(|c| c.to_string())
+                    .chain(std::iter::once("delete".to_owned())),
+            ) {
+                let mut pos = button.bottom_left();
+                if button.contains(self.mouse)
+                    && self
+                        .geng
+                        .window()
+                        .is_button_pressed(geng::MouseButton::Left)
+                {
+                    pos.y -= button.height() * 0.2;
+                }
+                self.assets.font.draw(
+                    framebuffer,
+                    &self.camera,
+                    pos,
+                    button.height(),
+                    &text,
+                    0.0,
+                    if button.contains(self.mouse) {
+                        Color::rgb(0.5, 0.5, 1.0)
+                    } else {
+                        Color::WHITE
+                    },
+                );
+            }
+        } else if self.customizer {
             for (button, text) in buttons.into_iter().zip([
                 "hat",
                 "face",
@@ -291,7 +376,7 @@ impl geng::State for Lobby {
                 "pants",
                 "equipment",
                 "random",
-                "play",
+                "back",
                 "secret",
             ]) {
                 let mut pos = button.bottom_left();
@@ -318,12 +403,11 @@ impl geng::State for Lobby {
                 );
             }
         } else {
-            for (button, text) in buttons.into_iter().zip(
-                "1234567890qwertyuiopasdfghjklzxcvbnm"
-                    .chars()
-                    .map(|c| c.to_string())
-                    .chain(std::iter::once("delete".to_owned())),
-            ) {
+            for (button, text) in
+                buttons
+                    .into_iter()
+                    .zip(["customize", "play", "spectate", "join discord"])
+            {
                 let mut pos = button.bottom_left();
                 if button.contains(self.mouse)
                     && self
@@ -338,7 +422,7 @@ impl geng::State for Lobby {
                     &self.camera,
                     pos,
                     button.height(),
-                    &text,
+                    text,
                     0.0,
                     if button.contains(self.mouse) {
                         Color::rgb(0.5, 0.5, 1.0)
