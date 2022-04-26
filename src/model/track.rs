@@ -36,7 +36,7 @@ impl Track {
         let mut rng = StdRng::seed_from_u64(seed);
         const TRACK_LEN: f32 = 1500.0;
         const TRACK_WIDTH: f32 = 30.0;
-        const SAFE_MIDDLE: f32 = 5.0;
+        const SAFE_MIDDLE: f32 = 2.5;
         const OBSTACLES_DENSITY: f32 = 0.2;
         const DISTANCE_BETWEEN_OBSTACLES: f32 = 0.5;
         const SPAWN_AREA: f32 = 10.0;
@@ -56,7 +56,7 @@ impl Track {
                 ys.push(y);
                 left.push(mid - TRACK_WIDTH);
                 right.push(mid + TRACK_WIDTH);
-                const DELTA: f32 = 20.0;
+                const DELTA: f32 = 10.0;
                 y += DELTA;
                 mid += rng.gen_range(-1.0..=1.0) * DELTA * 1.0;
             }
@@ -97,14 +97,15 @@ impl Track {
                         left_len += (vec2(y, left) - vec2(last.y, last.left)).len();
                         right_len += (vec2(y, right) - vec2(last.y, last.right)).len();
                     }
+                    let safe = SAFE_MIDDLE + (SPAWN_AREA + y).max(0.0) / SPAWN_AREA * SAFE_MIDDLE;
                     shape.push(ShapePoint {
                         y,
                         left,
                         right,
                         left_len,
                         right_len,
-                        safe_left: mid - SAFE_MIDDLE,
-                        safe_right: mid + SAFE_MIDDLE,
+                        safe_left: mid - safe,
+                        safe_right: mid + safe,
                     });
                 }
             }
