@@ -12,6 +12,8 @@ pub struct ShapePoint {
     pub y: f32,
     pub left: f32,
     pub right: f32,
+    pub left_len: f32,
+    pub right_len: f32,
     pub safe_left: f32,
     pub safe_right: f32,
 }
@@ -41,7 +43,7 @@ impl Track {
         const SPAWN_WIDTH: f32 = 10.0;
 
         let shape = {
-            let mut shape = Vec::new();
+            let mut shape: Vec<ShapePoint> = Vec::new();
             let mut y = SPAWN_AREA;
             let mut left = Vec::new();
             let mut right = Vec::new();
@@ -75,6 +77,8 @@ impl Track {
                     .collect(),
                 0.5,
             );
+            let mut left_len = 0.0;
+            let mut right_len = 0.0;
             for (left, right) in left
                 .intervals()
                 .into_iter()
@@ -89,10 +93,16 @@ impl Track {
                     let left = left.x;
                     let right = right.x;
                     let mid = (left + right) / 2.0;
+                    if let Some(last) = shape.last() {
+                        left_len += (vec2(y, left) - vec2(last.y, last.left)).len();
+                        right_len += (vec2(y, right) - vec2(last.y, last.right)).len();
+                    }
                     shape.push(ShapePoint {
                         y,
                         left,
                         right,
+                        left_len,
+                        right_len,
                         safe_left: mid - SAFE_MIDDLE,
                         safe_right: mid + SAFE_MIDDLE,
                     });
@@ -178,6 +188,8 @@ impl Track {
             y,
             left,
             right,
+            left_len: 0.0,
+            right_len: 0.0,
             safe_left,
             safe_right,
         }

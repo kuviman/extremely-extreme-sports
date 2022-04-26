@@ -846,38 +846,67 @@ impl geng::State for Game {
             ),
         );
         if true {
+            const OFF: f32 = 2.0;
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::Chain::new(
-                    Chain::new(
-                        model
-                            .track
-                            .shape
-                            .iter()
-                            .map(|point| vec2(point.left, point.y))
-                            .collect(),
-                    ),
-                    0.1,
-                    Color::BLACK,
-                    0,
+                &draw_2d::TexturedPolygon::strip(
+                    model
+                        .track
+                        .shape
+                        .windows(2)
+                        .flat_map(|window| {
+                            let a = &window[0];
+                            let b = &window[1];
+                            let n = -(vec2(b.left, b.y) - vec2(a.left, a.y))
+                                .rotate_90()
+                                .normalize();
+                            [
+                                draw_2d::TexturedVertex {
+                                    a_pos: vec2(a.left, a.y),
+                                    a_color: Color::WHITE,
+                                    a_vt: vec2(0.0, a.left_len / 2.0),
+                                },
+                                draw_2d::TexturedVertex {
+                                    a_pos: vec2(a.left, a.y) + n * OFF,
+                                    a_color: Color::WHITE,
+                                    a_vt: vec2(1.0, a.left_len / 2.0),
+                                },
+                            ]
+                        })
+                        .collect(),
+                    &self.assets.border,
                 ),
             );
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::Chain::new(
-                    Chain::new(
-                        model
-                            .track
-                            .shape
-                            .iter()
-                            .map(|point| vec2(point.right, point.y))
-                            .collect(),
-                    ),
-                    0.1,
-                    Color::BLACK,
-                    0,
+                &draw_2d::TexturedPolygon::strip(
+                    model
+                        .track
+                        .shape
+                        .windows(2)
+                        .flat_map(|window| {
+                            let a = &window[0];
+                            let b = &window[1];
+                            let n = (vec2(b.right, b.y) - vec2(a.right, a.y))
+                                .rotate_90()
+                                .normalize();
+                            [
+                                draw_2d::TexturedVertex {
+                                    a_pos: vec2(a.right, a.y),
+                                    a_color: Color::WHITE,
+                                    a_vt: vec2(0.0, a.right_len / 2.0),
+                                },
+                                draw_2d::TexturedVertex {
+                                    a_pos: vec2(a.right, a.y) + n * OFF,
+                                    a_color: Color::WHITE,
+                                    a_vt: vec2(1.0, a.right_len / 2.0),
+                                },
+                            ]
+                        })
+                        .collect(),
+                    &self.assets.border,
                 ),
             );
         } else {
