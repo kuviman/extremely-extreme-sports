@@ -233,6 +233,7 @@ impl Player {
             let force = -Vec2::dot(self.velocity, normal) * Self::FRICTION;
             self.ride_volume = force.abs() / 10.0;
             self.velocity += normal * force * delta_time;
+            self.velocity = self.velocity.clamp_len(..=Self::MAX_SPEED);
             self.ski_velocity = self.velocity;
             self.ski_rotation = self.rotation;
             self.crash_position = self.position;
