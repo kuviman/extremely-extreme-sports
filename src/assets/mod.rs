@@ -5,6 +5,7 @@ mod texture;
 pub use texture::*;
 
 #[derive(geng::Assets)]
+// #[asset(sequential)]
 pub struct PlayerAssets {
     #[asset(range = "1..=5", path = "coat/*.png")]
     pub coat: Vec<Texture>,
@@ -17,15 +18,15 @@ pub struct PlayerAssets {
     #[asset(range = "1..=8", path = "equipment/*.png")]
     pub equipment: Vec<Texture>,
     pub body: Texture,
-    #[asset(load_with = "load_custom(&geng, &base_path.join(\"custom.json\"))")]
+    #[asset(load_with = "load_custom(geng, base_path.join(\"custom.json\"))")]
     pub custom: HashMap<String, Texture>,
 }
 
 async fn load_custom(
     geng: &Geng,
-    path: &std::path::Path,
+    path: std::path::PathBuf,
 ) -> anyhow::Result<HashMap<String, Texture>> {
-    let json: String = geng::LoadAsset::load(geng, path).await?;
+    let json: String = geng::LoadAsset::load(geng, &path).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
     let mut result = HashMap::new();
     for name in list {

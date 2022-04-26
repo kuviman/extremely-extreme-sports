@@ -84,13 +84,19 @@ impl geng::LoadAsset for Font {
         let geng = geng.clone();
         let path = path.to_owned();
         async move {
-            let mut textures: Vec<ugli::Texture> = Vec::new();
+            let mut textures = Vec::new();
             let mut indices = HashMap::new();
             for c in CHARS.chars() {
                 indices.insert(c, textures.len());
-                textures
-                    .push(geng::LoadAsset::load(&geng, &path.join(format!("{}.png", c))).await?);
+                textures.push(<ugli::Texture as geng::LoadAsset>::load(
+                    &geng,
+                    &path.join(format!("{}.png", c)),
+                ));
             }
+            let mut textures: Vec<ugli::Texture> = futures::future::join_all(textures)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?;
             for texture in &mut textures {
                 texture.set_filter(ugli::Filter::Nearest);
             }
