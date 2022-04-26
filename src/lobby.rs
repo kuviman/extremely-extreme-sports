@@ -235,7 +235,7 @@ impl Lobby {
                     if self.name == "wendel" {
                         self.config.equipment = 5;
                     }
-                    if self.name == "jared" {
+                    if self.name == "jared" || self.name == "fizruk" {
                         self.config.equipment = 6;
                     }
                     if self.name == "jitspoe" {
