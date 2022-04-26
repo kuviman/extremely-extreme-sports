@@ -182,13 +182,14 @@ impl Lobby {
                     &self.geng,
                     &self.assets,
                     self.player_id,
-                    if self.name.is_empty() {
+                    Some(if self.name.is_empty() {
                         "unnamed".to_owned()
                     } else {
                         self.name.clone()
-                    },
-                    self.config.clone(),
+                    }),
+                    Some(self.config.clone()),
                     self.model.take().unwrap(),
+                    false,
                 ))));
             }
             7 => {

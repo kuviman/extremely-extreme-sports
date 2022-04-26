@@ -1,4 +1,3 @@
-use geng::net::simple as simple_net;
 use geng::prelude::*;
 
 mod assets;
@@ -6,6 +5,7 @@ mod discord;
 mod font;
 mod lobby;
 mod model;
+mod simple_net;
 
 use assets::*;
 use font::*;
@@ -53,11 +53,13 @@ impl Game {
         geng: &Geng,
         assets: &Rc<Assets>,
         player_id: Id,
-        name: String,
-        config: PlayerConfig,
+        name: Option<String>,
+        config: Option<PlayerConfig>,
         model: simple_net::Remote<Model>,
+        auto_sound: bool,
     ) -> Self {
         Self {
+            music: Some(assets.music.play()),
             touches: 0,
             touch_control: None,
             framebuffer_size: vec2(1, 1),
@@ -79,25 +81,27 @@ impl Game {
             last_model_tick: u64::MAX,
             players: {
                 let mut result = Collection::new();
-                result.insert(Player {
-                    emote: None,
-                    id: player_id,
-                    name,
-                    config,
-                    crash_position: Vec2::ZERO,
-                    is_riding: false,
-                    seen_no_avalanche: false,
-                    ski_rotation: 0.0,
-                    crash_timer: 0.0,
-                    ride_volume: 0.0,
-                    position: vec2(global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH), 0.0),
-                    radius: 0.3,
-                    rotation: 0.0,
-                    input: 0.0,
-                    velocity: Vec2::ZERO,
-                    crashed: false,
-                    ski_velocity: Vec2::ZERO,
-                });
+                if let (Some(name), Some(config)) = (name, config) {
+                    result.insert(Player {
+                        emote: None,
+                        id: player_id,
+                        name,
+                        config,
+                        crash_position: Vec2::ZERO,
+                        is_riding: false,
+                        seen_no_avalanche: false,
+                        ski_rotation: 0.0,
+                        crash_timer: 0.0,
+                        ride_volume: 0.0,
+                        position: vec2(global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH), 0.0),
+                        radius: 0.3,
+                        rotation: 0.0,
+                        input: 0.0,
+                        velocity: Vec2::ZERO,
+                        crashed: false,
+                        ski_velocity: Vec2::ZERO,
+                    });
+                }
                 result
             },
             ride_sound_effect: {
@@ -136,7 +140,6 @@ impl Game {
                 ],
             ),
             next_particle: 0.0,
-            music: None,
         }
     }
 
@@ -431,16 +434,6 @@ impl geng::State for Game {
             }
         }
 
-        {
-            let me = self.players.get_mut(&self.player_id).unwrap();
-            if let Some((time, _)) = &mut me.emote {
-                *time += delta_time;
-                if *time > 1.0 {
-                    me.emote = None;
-                }
-            }
-        }
-
         for (t, _) in &mut self.spawn_particles {
             *t += delta_time * 3.0;
         }
@@ -448,45 +441,60 @@ impl geng::State for Game {
 
         let mut sounds: Vec<(&[geng::Sound], Vec2<f32>)> = Vec::new();
 
-        self.players.get_mut(&self.player_id).unwrap().input = 0.0;
-
-        let touch_control = if let Some(pos) = self.touch_control {
-            if pos.x < self.framebuffer_size.x as f32 / 2.0 {
-                -1.0
-            } else {
-                1.0
+        if let Some(me) = self.players.get_mut(&self.player_id) {
+            if let Some((time, _)) = &mut me.emote {
+                *time += delta_time;
+                if *time > 1.0 {
+                    me.emote = None;
+                }
             }
-        } else {
-            0.0
-        };
 
-        if self.geng.window().is_key_pressed(geng::Key::A)
-            || self.geng.window().is_key_pressed(geng::Key::Left)
-            || touch_control < 0.0
-        {
-            self.players.get_mut(&self.player_id).unwrap().input -= 1.0;
-        }
-        if self.geng.window().is_key_pressed(geng::Key::D)
-            || self.geng.window().is_key_pressed(geng::Key::Right)
-            || touch_control > 0.0
-        {
-            self.players.get_mut(&self.player_id).unwrap().input += 1.0;
+            me.input = 0.0;
+
+            let touch_control = if let Some(pos) = self.touch_control {
+                if pos.x < self.framebuffer_size.x as f32 / 2.0 {
+                    -1.0
+                } else {
+                    1.0
+                }
+            } else {
+                0.0
+            };
+
+            if self.geng.window().is_key_pressed(geng::Key::A)
+                || self.geng.window().is_key_pressed(geng::Key::Left)
+                || touch_control < 0.0
+            {
+                me.input -= 1.0;
+            }
+            if self.geng.window().is_key_pressed(geng::Key::D)
+                || self.geng.window().is_key_pressed(geng::Key::Right)
+                || touch_control > 0.0
+            {
+                me.input += 1.0;
+            }
         }
         {
             let model = self.model.get();
 
-            let my_player = self.interpolated_players.get(&self.player_id).unwrap();
+            let my_player = self.interpolated_players.get(&self.player_id);
             let mut target_player = my_player;
-            if !my_player.is_riding && model.avalanche_position.is_some() {
+            if my_player.is_none()
+                || (!my_player.as_ref().unwrap().is_riding && model.avalanche_position.is_some())
+            {
                 if let Some(player) = self
                     .interpolated_players
                     .iter()
                     .min_by_key(|player| r32(player.position.y))
                 {
-                    target_player = player;
+                    target_player = Some(player);
                 }
             }
-            let mut target_center = target_player.position + target_player.velocity * 0.5;
+            let mut target_center = if let Some(target_player) = target_player {
+                target_player.position + target_player.velocity * 0.5
+            } else {
+                vec2(0.0, 0.0)
+            };
             self.camera.center +=
                 (target_center - self.camera.center) * (3.0 * delta_time).min(1.0);
 
@@ -516,44 +524,37 @@ impl geng::State for Game {
                 });
             }
             if model.avalanche_position.is_none() {
-                self.players
-                    .get_mut(&self.player_id)
-                    .unwrap()
-                    .seen_no_avalanche = true;
-            }
-            if self
-                .players
-                .get_mut(&self.player_id)
-                .unwrap()
-                .seen_no_avalanche
-                && model.avalanche_position.is_some()
-            {
-                let player = self.players.get_mut(&self.player_id).unwrap();
-                if !player.is_riding {
-                    for _ in 0..100 {
-                        self.explosion_time = Some(0.0);
-                        let mut sfx = self.assets.boom_sound.effect();
-                        sfx.set_volume(self.volume);
-                        sfx.play();
-                        break;
-                        self.explosion_particles.push(Particle {
-                            i_pos: vec2(0.0, 5.0),
-                            i_vel: vec2(global_rng().gen_range(0.0f32..=1.0).powf(0.2), 0.0)
-                                .rotate(global_rng().gen_range(-f32::PI..=f32::PI))
-                                * 5.0,
-                            i_time: self.time,
-                            i_size: 0.4,
-                            i_opacity: 0.3,
-                        })
-                    }
-                    player.is_riding = true;
+                if let Some(player) = self.players.get_mut(&self.player_id) {
+                    player.seen_no_avalanche = true;
                 }
             }
-            if self.players.get_mut(&self.player_id).unwrap().crash_timer > 2.0 {
-                self.model.send(Message::Score(
-                    (-self.players.get_mut(&self.player_id).unwrap().position.y * 100.0) as i32,
-                ));
-                self.players.get_mut(&self.player_id).unwrap().respawn();
+            if let Some(me) = self.players.get_mut(&self.player_id) {
+                if me.seen_no_avalanche && model.avalanche_position.is_some() {
+                    if !me.is_riding {
+                        for _ in 0..100 {
+                            self.explosion_time = Some(0.0);
+                            let mut sfx = self.assets.boom_sound.effect();
+                            sfx.set_volume(self.volume);
+                            sfx.play();
+                            break;
+                            self.explosion_particles.push(Particle {
+                                i_pos: vec2(0.0, 5.0),
+                                i_vel: vec2(global_rng().gen_range(0.0f32..=1.0).powf(0.2), 0.0)
+                                    .rotate(global_rng().gen_range(-f32::PI..=f32::PI))
+                                    * 5.0,
+                                i_time: self.time,
+                                i_size: 0.4,
+                                i_opacity: 0.3,
+                            })
+                        }
+                        me.is_riding = true;
+                    }
+                }
+                if me.crash_timer > 2.0 {
+                    self.model
+                        .send(Message::Score((-me.position.y * 100.0) as i32));
+                    me.respawn();
+                }
             }
             for player in &mut self.players {
                 let shape_point = model.track.at(player.position.y);
@@ -666,9 +667,9 @@ impl geng::State for Game {
             particle.i_pos += particle.i_vel * delta_time;
             particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
         }
-        self.model.send(Message::UpdatePlayer(
-            self.players.get(&self.player_id).unwrap().clone(),
-        ));
+        if let Some(player) = self.players.get(&self.player_id) {
+            self.model.send(Message::UpdatePlayer(player.clone()));
+        }
 
         for event in self.model.update() {
             // TODO handle
@@ -681,18 +682,21 @@ impl geng::State for Game {
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         self.framebuffer_size = framebuffer.size();
         let model = self.model.get();
-        let my_player = self
-            .interpolated_players
-            .get(&self.player_id)
-            .unwrap_or(self.players.get(&self.player_id).unwrap());
+        let my_player = self.players.get(&self.player_id);
+        // self
+        //     .interpolated_players
+        //     .get(&self.player_id)
+        //     .unwrap_or(self.players.get(&self.player_id).unwrap());
         let mut target_player = my_player;
-        if !my_player.is_riding && model.avalanche_position.is_some() {
+        if my_player.is_none()
+            || (!my_player.as_ref().unwrap().is_riding && model.avalanche_position.is_some())
+        {
             if let Some(player) = self
                 .interpolated_players
                 .iter()
                 .min_by_key(|player| r32(player.position.y))
             {
-                target_player = player;
+                target_player = Some(player);
             }
         }
 
@@ -768,20 +772,22 @@ impl geng::State for Game {
                 ),
             );
         }
-        if model.avalanche_position.is_none()
-            && my_player.position.x >= 0.0
-            && my_player.position.x < 1.0
-        {
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::TexturedQuad::new(
-                    AABB::<f32>::point(self.camera.center + vec2(0.0, 4.0)).extend_symmetric(
-                        self.assets.detonate_text.size().map(|x| x as f32) * 0.05,
+        if let Some(my_player) = &my_player {
+            if model.avalanche_position.is_none()
+                && my_player.position.x >= 0.0
+                && my_player.position.x < 1.0
+            {
+                self.geng.draw_2d(
+                    framebuffer,
+                    &self.camera,
+                    &draw_2d::TexturedQuad::new(
+                        AABB::<f32>::point(self.camera.center + vec2(0.0, 4.0)).extend_symmetric(
+                            self.assets.detonate_text.size().map(|x| x as f32) * 0.05,
+                        ),
+                        &self.assets.detonate_text,
                     ),
-                    &self.assets.detonate_text,
-                ),
-            );
+                );
+            }
         }
 
         let framebuffer_size = framebuffer.size();
@@ -1066,17 +1072,19 @@ impl geng::State for Game {
                 ),
             );
         }
-        if !my_player.is_riding && model.avalanche_position.is_some() {
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::TexturedQuad::new(
-                    AABB::<f32>::point(self.camera.center + vec2(0.0, -5.0)).extend_symmetric(
-                        self.assets.spectating_text.size().map(|x| x as f32) * 0.05,
+        if let Some(my_player) = &my_player {
+            if !my_player.is_riding && model.avalanche_position.is_some() {
+                self.geng.draw_2d(
+                    framebuffer,
+                    &self.camera,
+                    &draw_2d::TexturedQuad::new(
+                        AABB::<f32>::point(self.camera.center + vec2(0.0, -5.0)).extend_symmetric(
+                            self.assets.spectating_text.size().map(|x| x as f32) * 0.05,
+                        ),
+                        &self.assets.spectating_text,
                     ),
-                    &self.assets.spectating_text,
-                ),
-            );
+                );
+            }
         }
         if self.show_player_names {
             for player in &self.interpolated_players {
@@ -1138,29 +1146,33 @@ impl geng::State for Game {
                 Color::WHITE,
             );
         }
-        if target_player.is_riding {
-            self.ride_sound_effect.set_volume(
-                (target_player.velocity.len() / Player::MAX_SPEED * 0.05
-                    + target_player.ride_volume.min(1.0) * 0.1) as f64
-                    * self.volume,
-            );
-            self.assets.font.draw(
-                framebuffer,
-                &self.camera,
-                self.camera.center + vec2(0.0, -9.0),
-                1.0,
-                &format!("score {}", (-target_player.position.y * 100.0) as i32),
-                0.5,
-                Color::WHITE,
-            );
-            // self.assets.font.draw(
-            //     framebuffer,
-            //     &self.camera,
-            //     self.camera.center + vec2(0.0, -10.0),
-            //     1.0,
-            //     &format!("speed {}m per second", (-target_player.velocity.y) as i32),
-            //     0.5,
-            // );
+        if let Some(target_player) = target_player {
+            if target_player.is_riding {
+                self.ride_sound_effect.set_volume(
+                    (target_player.velocity.len() / Player::MAX_SPEED * 0.05
+                        + target_player.ride_volume.min(1.0) * 0.1) as f64
+                        * self.volume,
+                );
+                self.assets.font.draw(
+                    framebuffer,
+                    &self.camera,
+                    self.camera.center + vec2(0.0, -9.0),
+                    1.0,
+                    &format!("score {}", (-target_player.position.y * 100.0) as i32),
+                    0.5,
+                    Color::WHITE,
+                );
+                // self.assets.font.draw(
+                //     framebuffer,
+                //     &self.camera,
+                //     self.camera.center + vec2(0.0, -10.0),
+                //     1.0,
+                //     &format!("speed {}m per second", (-target_player.velocity.y) as i32),
+                //     0.5,
+                // );
+            } else {
+                self.ride_sound_effect.set_volume(0.0);
+            }
         } else {
             self.ride_sound_effect.set_volume(0.0);
         }
@@ -1194,23 +1206,93 @@ impl geng::State for Game {
     }
 }
 
+#[derive(clap::Parser, Clone)]
+struct Opt {
+    #[clap(long)]
+    addr: Option<String>,
+    #[clap(long)]
+    server: bool,
+    #[clap(long)]
+    with_server: bool,
+    #[clap(long)]
+    spectator: bool,
+    #[clap(long)]
+    auto_sound: bool,
+}
+
+impl Opt {
+    pub fn addr(&self) -> &str {
+        match &self.addr {
+            Some(addr) => addr,
+            None => option_env!("SERVER_ADDR").unwrap_or("127.0.0.1:1155"),
+        }
+    }
+}
+
 fn main() {
-    geng::net::simple::run("LD50", Model::new, |geng, player_id, model| {
-        geng::LoadingScreen::new(
-            &geng,
-            geng::EmptyLoadingScreen,
-            <Assets as geng::LoadAsset>::load(&geng, &static_path()),
-            {
-                let geng = geng.clone();
-                move |assets| {
-                    let mut assets = assets.expect("Failed to load assets");
-                    assets.border.set_wrap_mode(ugli::WrapMode::Repeat);
-                    assets.ride_sound.looped = true;
-                    assets.avalanche_sound.looped = true;
-                    assets.music.looped = true;
-                    Lobby::new(&geng, &Rc::new(assets), player_id, model)
-                }
-            },
-        )
-    });
+    logger::init().unwrap();
+    let opt: Opt = program_args::parse();
+    let model_constructor = Model::new;
+    let game_constructor = {
+        let opt = opt.clone();
+        move |geng: &Geng, player_id, model| {
+            geng::LoadingScreen::new(
+                &geng,
+                geng::EmptyLoadingScreen,
+                <Assets as geng::LoadAsset>::load(&geng, &static_path()),
+                {
+                    let geng = geng.clone();
+                    move |assets| {
+                        let mut assets = assets.expect("Failed to load assets");
+                        assets.border.set_wrap_mode(ugli::WrapMode::Repeat);
+                        assets.ride_sound.looped = true;
+                        assets.avalanche_sound.looped = true;
+                        assets.music.looped = true;
+                        if opt.spectator {
+                            Box::new(Game::new(
+                                &geng,
+                                &Rc::new(assets),
+                                player_id,
+                                None,
+                                None,
+                                model,
+                                opt.auto_sound,
+                            )) as Box<dyn geng::State>
+                        } else {
+                            Box::new(Lobby::new(&geng, &Rc::new(assets), player_id, model))
+                        }
+                    }
+                },
+            )
+        }
+    };
+    if opt.server {
+        #[cfg(not(target_arch = "wasm32"))]
+        simple_net::Server::new(opt.addr(), model_constructor()).run();
+    } else {
+        #[cfg(not(target_arch = "wasm32"))]
+        let server = if opt.with_server {
+            let server = simple_net::Server::new(opt.addr(), model_constructor());
+            let server_handle = server.handle();
+            let server_thread = std::thread::spawn(move || {
+                server.run();
+            });
+            Some((server_handle, server_thread))
+        } else {
+            None
+        };
+
+        let geng = Geng::new("Extremely Extreme Sports");
+        let state = simple_net::ConnectingState::new(&geng, opt.addr(), {
+            let geng = geng.clone();
+            move |player_id, model| game_constructor(&geng, player_id, model)
+        });
+        geng::run(&geng, state);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((server_handle, server_thread)) = server {
+            server_handle.shutdown();
+            server_thread.join().unwrap();
+        }
+    }
 }
