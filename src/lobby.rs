@@ -10,7 +10,8 @@ pub struct Lobby {
     name: String,
     camera: geng::Camera2d,
     mouse: Vec2<f32>,
-    config: PlayerConfig,
+    new_config: PlayerConfig,
+    config: skin::Config,
     keyboard: bool,
     customizer: bool,
     leaderboard: bool,
@@ -64,10 +65,11 @@ impl Lobby {
                 None => String::new(),
             },
             mouse: Vec2::ZERO,
-            config: match autosave::load("player.json") {
+            new_config: match autosave::load("player.json") {
                 Some(config) => config,
                 None => PlayerConfig::random(&assets.player),
             },
+            config: assets.player_config.clone(),
             customizer: false,
             leaderboard: false,
         }
@@ -191,64 +193,64 @@ impl Lobby {
             // "hat", "face", "coat", "pants", "equipment"
             match index {
                 0 => {
-                    self.config.hat += 1;
-                    self.config.hat %= 4; // self.assets.player.hat.len();
+                    self.new_config.hat += 1;
+                    self.new_config.hat %= 4; // self.assets.player.hat.len();
                 }
                 1 => {
-                    self.config.face += 1;
-                    self.config.face %= 4; //self.assets.player.face.len();
+                    self.new_config.face += 1;
+                    self.new_config.face %= 4; //self.assets.player.face.len();
                 }
                 2 => {
-                    self.config.coat += 1;
-                    self.config.coat %= 4; // self.assets.player.coat.len();
+                    self.new_config.coat += 1;
+                    self.new_config.coat %= 4; // self.assets.player.coat.len();
                 }
                 3 => {
-                    self.config.pants += 1;
-                    self.config.pants %= 4; // self.assets.player.pants.len();
+                    self.new_config.pants += 1;
+                    self.new_config.pants %= 4; // self.assets.player.pants.len();
                 }
                 4 => {
-                    self.config.equipment += 1;
-                    self.config.equipment %= 2; // self.assets.player.equipment.len();
+                    self.new_config.equipment += 1;
+                    self.new_config.equipment %= 2; // self.assets.player.equipment.len();
                 }
                 5 => {
-                    self.config = PlayerConfig::random(&self.assets.player);
+                    self.new_config = PlayerConfig::random(&self.assets.player);
                 }
                 6 => {
                     self.customizer = false;
                 }
                 7 => {
                     if self.assets.player.custom.contains_key(&self.name) {
-                        self.config.custom = Some(self.name.clone());
+                        self.new_config.custom = Some(self.name.clone());
                     }
                     if self.name == "6fu" {
-                        self.config.equipment = 3;
+                        self.new_config.equipment = 3;
                     }
                     if self.name == "kidgiraffe" {
-                        self.config.equipment = 2;
+                        self.new_config.equipment = 2;
                     }
                     if self.name == "potkirland" {
-                        self.config.pants = 4;
-                        self.config.coat = 4;
-                        self.config.face = 0;
-                        self.config.hat = 3;
+                        self.new_config.pants = 4;
+                        self.new_config.coat = 4;
+                        self.new_config.face = 0;
+                        self.new_config.hat = 3;
                     }
                     if self.name == "wendel" {
-                        self.config.equipment = 5;
+                        self.new_config.equipment = 5;
                     }
                     if self.name == "jared" || self.name == "fizruk" {
-                        self.config.equipment = 6;
+                        self.new_config.equipment = 6;
                     }
                     if self.name == "jitspoe" {
-                        self.config.equipment = 7;
-                        self.config.pants = 3;
-                        self.config.coat = 1;
-                        self.config.face = 3;
-                        self.config.hat = 0;
+                        self.new_config.equipment = 7;
+                        self.new_config.pants = 3;
+                        self.new_config.coat = 1;
+                        self.new_config.face = 3;
+                        self.new_config.hat = 0;
                     }
                 }
                 _ => unreachable!(),
             }
-            autosave::save("player.json", &self.config);
+            autosave::save("player.json", &self.new_config);
         } else if self.leaderboard {
             match index {
                 0 => {
@@ -448,15 +450,17 @@ impl geng::State for Lobby {
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::TexturedQuad::unit(&self.assets.player.equipment[self.config.equipment])
-                    .transform(Mat3::rotate(0.1))
-                    .translate(vec2(-0.5, 1.0)),
+                &draw_2d::TexturedQuad::unit(
+                    &self.assets.player.equipment[self.new_config.equipment],
+                )
+                .transform(Mat3::rotate(0.1))
+                .translate(vec2(-0.5, 1.0)),
             );
             self.geng.draw_2d(
                 framebuffer,
                 &self.camera,
                 &draw_2d::TexturedQuad::unit(
-                    &self.assets.player.assemble(&self.geng, &self.config),
+                    &self.assets.player.assemble(&self.geng, &self.new_config),
                 )
                 .translate(vec2(-0.5, 0.0)),
             );

@@ -1,0 +1,291 @@
+{
+    "parts": [
+        {
+            "name": "body",
+            "texture": "player/penguin.png",
+            "origin": [
+                64,
+                64
+            ],
+            "position": {
+                "still": {
+                    "base": [
+                        0,
+                        0
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "max_speed": {
+                    "base": [
+                        0,
+                        0
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "turn_addition": {
+                    "base": [
+                        0,
+                        0
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                }
+            },
+            "scale": {
+                "still": {
+                    "base": [
+                        1,
+                        1
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "max_speed": {
+                    "base": [
+                        1,
+                        1
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "turn_addition": {
+                    "base": [
+                        0,
+                        0
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                }
+            },
+            "rotation": {
+                "still": {
+                    "base": 0,
+                    "amplitude": 0,
+                    "frequency": 1
+                },
+                "max_speed": {
+                    "base": 0,
+                    "amplitude": 0,
+                    "frequency": 1
+                },
+                "turn_addition": {
+                    "base": 0,
+                    "amplitude": 0,
+                    "frequency": 1
+                }
+            }
+        },
+        {
+            "name": "left_hand",
+            "parent": "body",
+            "texture": "player/penguin-hand.png",
+            "origin": [
+                48,
+                93
+            ],
+            "position": {
+                "still": {
+                    "base": [
+                        51,
+                        93
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "max_speed": {
+                    "base": [
+                        51,
+                        93
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "turn_addition": {
+                    "base": [
+                        0,
+                        0
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                }
+            },
+            "scale": {
+                "still": {
+                    "base": [
+                        1,
+                        1
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "max_speed": {
+                    "base": [
+                        1,
+                        1
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "turn_addition": {
+                    "base": [
+                        0,
+                        0
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                }
+            },
+            "rotation": {
+                "still": {
+                    "base": 0,
+                    "amplitude": 0,
+                    "frequency": 5
+                },
+                "max_speed": {
+                    "base": -90,
+                    "amplitude": 10,
+                    "frequency": 5
+                },
+                "turn_addition": {
+                    "base": 0,
+                    "amplitude": 0,
+                    "frequency": 0
+                }
+            }
+        },
+        {
+            "name": "right_hand",
+            "parent": "body",
+            "texture": "player/penguin-hand.png",
+            "origin": [
+                48,
+                93
+            ],
+            "position": {
+                "still": {
+                    "base": [
+                        85,
+                        93
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "max_speed": {
+                    "base": [
+                        85,
+                        93
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "turn_addition": {
+                    "base": [
+                        0,
+                        0
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                }
+            },
+            "scale": {
+                "still": {
+                    "base": [
+                        -1,
+                        1
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "max_speed": {
+                    "base": [
+                        -1,
+                        1
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                },
+                "turn_addition": {
+                    "base": [
+                        0,
+                        0
+                    ],
+                    "amplitude": [
+                        0,
+                        0
+                    ],
+                    "frequency": 1
+                }
+            },
+            "rotation": {
+                "still": {
+                    "base": 0,
+                    "amplitude": 0,
+                    "frequency": 5
+                },
+                "max_speed": {
+                    "base": 60,
+                    "amplitude": 10,
+                    "frequency": 5
+                },
+                "turn_addition": {
+                    "base": 0,
+                    "amplitude": 0,
+                    "frequency": 0
+                }
+            }
+        }
+    ]
+}

@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use geng::prelude::*;
 
 mod assets;
@@ -6,6 +7,7 @@ mod font;
 mod lobby;
 mod model;
 mod simple_net;
+mod skin;
 
 use assets::*;
 use font::*;
@@ -56,7 +58,7 @@ impl Game {
         assets: &Rc<Assets>,
         player_id: Id,
         name: Option<String>,
-        config: Option<PlayerConfig>,
+        config: Option<skin::Config>,
         model: simple_net::Remote<Model>,
         auto_sound: bool,
     ) -> Self {
@@ -88,6 +90,7 @@ impl Game {
                         emote: None,
                         id: player_id,
                         name,
+                        old_config: PlayerConfig::random(&assets.player),
                         config,
                         crash_position: Vec2::ZERO,
                         is_riding: false,
@@ -233,7 +236,7 @@ impl Game {
     }
 
     fn draw_player(&self, framebuffer: &mut ugli::Framebuffer, player: &Player) {
-        let equipment: &ugli::Texture = &self.assets.player.equipment[player.config.equipment];
+        let equipment: &ugli::Texture = &self.assets.player.equipment[player.old_config.equipment];
         if !player.crashed && player.is_riding {
             self.draw_texture(
                 framebuffer,
@@ -263,22 +266,49 @@ impl Game {
                 Color::WHITE,
             );
         }
-        self.draw_texture(
-            framebuffer,
-            &self.assets.player.assemble(&self.geng, &player.config),
-            Mat3::translate(
-                player.position
-                    + if player.is_riding {
-                        vec2(0.0, 0.0)
-                    } else {
-                        vec2(
-                            0.0,
-                            player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
-                        )
-                    },
-            ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0)),
-            Color::WHITE,
-        );
+
+        let final_matrix = Mat3::translate(
+            player.position
+                + if player.is_riding {
+                    vec2(0.0, 0.0)
+                } else {
+                    vec2(
+                        0.0,
+                        player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
+                    )
+                },
+        ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0))
+            * Mat3::scale_uniform(1.0 / 64.0);
+        let speed = (player.velocity.len() / Player::MAX_SPEED).min(1.0);
+        let mut part_matrices: HashMap<&str, Mat3<f32>> = HashMap::new();
+        for part in &player.config.parts {
+            let texture = &self.assets.textures[&part.texture];
+            let parent_matrix = match &part.parent {
+                Some(name) => part_matrices[name.as_str()],
+                None => Mat3::identity(),
+            };
+            let position = (parent_matrix
+                * part
+                    .position
+                    .interpolate(player.input, speed, self.time)
+                    .extend(1.0))
+            .xy();
+            // Mat3::translate(position)
+            let matrix = parent_matrix
+                * Mat3::translate(part.position.interpolate(player.input, speed, self.time))
+                * Mat3::rotate(
+                    part.rotation.interpolate(player.input, speed, self.time) * f32::PI / 180.0,
+                )
+                * Mat3::scale(part.scale.interpolate(player.input, speed, self.time))
+                * Mat3::translate(-part.origin);
+            if let Some(name) = &part.name {
+                part_matrices.insert(name.as_str(), matrix);
+            }
+            let matrix = matrix
+                * Mat3::scale(texture.size().map(|x| x as f32) / 2.0)
+                * Mat3::translate(vec2(1.0, 1.0));
+            self.draw_texture(framebuffer, texture, final_matrix * matrix, Color::WHITE);
+        }
 
         if let Some((_, index)) = player.emote {
             self.draw_texture(
@@ -311,6 +341,7 @@ impl Game {
                 emote: player.emote,
                 name: player.name.clone(),
                 position: i.position + (player.position - i.position) / EXPECTED_PING * delta_time,
+                old_config: player.old_config.clone(),
                 config: player.config.clone(),
                 radius: player.radius,
                 rotation: player.rotation,
