@@ -278,8 +278,16 @@ impl Game {
                 },
         ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0))
             * Mat3::scale_uniform(1.0 / 64.0);
-        let turn = player.rotation / Player::ROTATION_LIMIT;
-        let speed = (player.velocity.len() / Player::MAX_SPEED).min(1.0);
+        let turn = if player.is_riding {
+            player.rotation / Player::ROTATION_LIMIT
+        } else {
+            player.velocity.x / Player::MAX_WALK_SPEED
+        };
+        let speed = if player.is_riding {
+            (player.velocity.len() / Player::MAX_SPEED).min(1.0)
+        } else {
+            0.0
+        };
         let mut part_matrices: HashMap<&str, Mat3<f32>> = HashMap::new();
         for part in &player.config.parts {
             let texture = &self.assets.textures[&part.texture];
