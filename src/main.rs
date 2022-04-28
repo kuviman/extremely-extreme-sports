@@ -1,4 +1,3 @@
-#![allow(warnings)]
 use geng::prelude::*;
 
 mod assets;
@@ -295,11 +294,16 @@ impl Game {
                     .extend(1.0))
             .xy();
             // Mat3::translate(position)
-            let matrix = parent_matrix
-                * Mat3::translate(part.position.interpolate(turn, speed, self.time))
-                * Mat3::rotate(part.rotation.interpolate(turn, speed, self.time) * f32::PI / 180.0)
-                * Mat3::scale(part.scale.interpolate(turn, speed, self.time))
-                * Mat3::translate(-part.origin);
+            let mut matrix =
+                parent_matrix * Mat3::translate(part.position.interpolate(turn, speed, self.time));
+            if let Some(rotation) = &part.rotation {
+                matrix *=
+                    Mat3::rotate(rotation.interpolate(turn, speed, self.time) * f32::PI / 180.0);
+            }
+            if let Some(scale) = &part.scale {
+                matrix *= Mat3::scale(scale.interpolate(turn, speed, self.time));
+            }
+            matrix *= Mat3::translate(-part.origin);
             if let Some(name) = &part.name {
                 part_matrices.insert(name.as_str(), matrix);
             }
