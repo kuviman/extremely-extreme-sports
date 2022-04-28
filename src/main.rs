@@ -279,6 +279,7 @@ impl Game {
                 },
         ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0))
             * Mat3::scale_uniform(1.0 / 64.0);
+        let turn = player.rotation / Player::ROTATION_LIMIT;
         let speed = (player.velocity.len() / Player::MAX_SPEED).min(1.0);
         let mut part_matrices: HashMap<&str, Mat3<f32>> = HashMap::new();
         for part in &player.config.parts {
@@ -290,16 +291,14 @@ impl Game {
             let position = (parent_matrix
                 * part
                     .position
-                    .interpolate(player.input, speed, self.time)
+                    .interpolate(turn, speed, self.time)
                     .extend(1.0))
             .xy();
             // Mat3::translate(position)
             let matrix = parent_matrix
-                * Mat3::translate(part.position.interpolate(player.input, speed, self.time))
-                * Mat3::rotate(
-                    part.rotation.interpolate(player.input, speed, self.time) * f32::PI / 180.0,
-                )
-                * Mat3::scale(part.scale.interpolate(player.input, speed, self.time))
+                * Mat3::translate(part.position.interpolate(turn, speed, self.time))
+                * Mat3::rotate(part.rotation.interpolate(turn, speed, self.time) * f32::PI / 180.0)
+                * Mat3::scale(part.scale.interpolate(turn, speed, self.time))
                 * Mat3::translate(-part.origin);
             if let Some(name) = &part.name {
                 part_matrices.insert(name.as_str(), matrix);

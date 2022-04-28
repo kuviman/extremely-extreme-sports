@@ -89,7 +89,7 @@
                     "frequency": 1
                 },
                 "turn_addition": {
-                    "base": 0,
+                    "base": -5,
                     "amplitude": 0,
                     "frequency": 1
                 }
@@ -185,7 +185,7 @@
                     "frequency": 5
                 },
                 "turn_addition": {
-                    "base": 0,
+                    "base": 30,
                     "amplitude": 0,
                     "frequency": 0
                 }
@@ -276,12 +276,12 @@
                     "frequency": 5
                 },
                 "max_speed": {
-                    "base": 60,
+                    "base": 90,
                     "amplitude": 10,
                     "frequency": 5
                 },
                 "turn_addition": {
-                    "base": 0,
+                    "base": 30,
                     "amplitude": 0,
                     "frequency": 0
                 }
