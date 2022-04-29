@@ -549,7 +549,10 @@ impl geng::State for Game {
                     );
                 } else {
                     player.update_riding(delta_time);
-                    for obstacle in &model.track.obstacles {
+                    for obstacle in model
+                        .track
+                        .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
+                    {
                         let delta_pos = player.position - obstacle.position;
                         let peneration = player.radius + obstacle.radius - delta_pos.len();
                         if peneration > 0.0 {
@@ -808,7 +811,10 @@ impl geng::State for Game {
                 Chain::new(
                     model
                         .track
-                        .shape
+                        .query_shape(
+                            self.camera.center.y + self.camera.fov * 2.0,
+                            self.camera.center.y - self.camera.fov * 2.0,
+                        )
                         .iter()
                         .map(|point| vec2(point.safe_left, point.y))
                         .collect(),
@@ -825,7 +831,10 @@ impl geng::State for Game {
                 Chain::new(
                     model
                         .track
-                        .shape
+                        .query_shape(
+                            self.camera.center.y + self.camera.fov * 2.0,
+                            self.camera.center.y - self.camera.fov * 2.0,
+                        )
                         .iter()
                         .map(|point| vec2(point.safe_right, point.y))
                         .collect(),
@@ -843,7 +852,10 @@ impl geng::State for Game {
                 &draw_2d::TexturedPolygon::strip(
                     model
                         .track
-                        .shape
+                        .query_shape(
+                            self.camera.center.y + self.camera.fov * 2.0,
+                            self.camera.center.y - self.camera.fov * 2.0,
+                        )
                         .windows(2)
                         .flat_map(|window| {
                             let a = &window[0];
@@ -874,7 +886,10 @@ impl geng::State for Game {
                 &draw_2d::TexturedPolygon::strip(
                     model
                         .track
-                        .shape
+                        .query_shape(
+                            self.camera.center.y + self.camera.fov * 2.0,
+                            self.camera.center.y - self.camera.fov * 2.0,
+                        )
                         .windows(2)
                         .flat_map(|window| {
                             let a = &window[0];
@@ -983,7 +998,10 @@ impl geng::State for Game {
             );
         }
         if true || self.players.get(&self.player_id).unwrap().is_riding {
-            for obstacle in &model.track.obstacles {
+            for obstacle in model.track.query_obstacles(
+                self.camera.center.y + self.camera.fov * 2.0,
+                self.camera.center.y - self.camera.fov * 2.0,
+            ) {
                 if !in_view(obstacle.position) {
                     continue;
                 }
@@ -1009,7 +1027,10 @@ impl geng::State for Game {
         }
 
         if true || self.players.get(&self.player_id).unwrap().is_riding {
-            for obstacle in &model.track.obstacles {
+            for obstacle in model.track.query_obstacles(
+                self.camera.center.y + self.camera.fov * 2.0,
+                self.camera.center.y - self.camera.fov * 2.0,
+            ) {
                 if !in_view(obstacle.position) {
                     continue;
                 }

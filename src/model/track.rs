@@ -34,7 +34,7 @@ impl Track {
     }
     pub fn new(seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
-        const TRACK_LEN: f32 = 1500.0;
+        const TRACK_LEN: f32 = 2000.0;
         const TRACK_WIDTH: f32 = 30.0;
         const SAFE_MIDDLE: f32 = 2.5;
         const OBSTACLES_DENSITY: f32 = 0.2;
@@ -156,6 +156,34 @@ impl Track {
         }
         obstacles.sort_by_key(|o| -r32(o.position.y));
         Self { shape, obstacles }
+    }
+    pub fn query_obstacles(&self, start: f32, end: f32) -> &[Obstacle] {
+        let start = match self
+            .obstacles
+            .binary_search_by_key(&r32(-start), |o| -r32(o.position.y))
+        {
+            Ok(idx) => idx,
+            Err(idx) => idx,
+        };
+        let end = match self
+            .obstacles
+            .binary_search_by_key(&r32(-end), |o| -r32(o.position.y))
+        {
+            Ok(idx) => idx,
+            Err(idx) => idx,
+        };
+        &self.obstacles[start..end]
+    }
+    pub fn query_shape(&self, start: f32, end: f32) -> &[ShapePoint] {
+        let start = match self.shape.binary_search_by_key(&r32(-start), |p| -r32(p.y)) {
+            Ok(idx) => idx,
+            Err(idx) => idx,
+        };
+        let end = match self.shape.binary_search_by_key(&r32(-end), |p| -r32(p.y)) {
+            Ok(idx) => idx,
+            Err(idx) => idx,
+        };
+        &self.shape[start..end]
     }
     fn at_shape(shape: &Vec<ShapePoint>, y: f32) -> ShapePoint {
         let idx = match shape.binary_search_by_key(&r32(-y), |point| r32(-point.y)) {
