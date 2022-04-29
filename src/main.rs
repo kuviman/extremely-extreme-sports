@@ -25,6 +25,7 @@ pub struct Particle {
 }
 
 pub struct Game {
+    next_update: f64,
     framebuffer_size: Vec2<usize>,
     touch_control: Option<Vec2<f32>>,
     touches: usize,
@@ -63,6 +64,7 @@ impl Game {
         auto_sound: bool,
     ) -> Self {
         Self {
+            next_update: 0.0,
             music: Some(assets.music.play()),
             touches: 0,
             touch_control: None,
@@ -391,278 +393,287 @@ impl geng::State for Game {
         }
     }
     fn update(&mut self, delta_time: f64) {
-        if self.geng.window().is_key_pressed(geng::Key::PageUp) {
-            self.volume += delta_time;
-        }
-        if self.geng.window().is_key_pressed(geng::Key::PageDown) {
-            self.volume -= delta_time;
-        }
-        self.volume = self.volume.clamp(0.0, 1.0);
-
-        let delta_time = delta_time as f32;
-        self.time += delta_time;
-
-        self.update_interpolated(delta_time);
-
-        if let Some(time) = &mut self.explosion_time {
-            *time += delta_time;
-            if *time > 1.0 {
-                self.explosion_time = None;
+        self.next_update -= delta_time;
+        while self.next_update < 0.0 {
+            let delta_time = 1.0 / 200.0;
+            self.next_update += delta_time;
+            if self.geng.window().is_key_pressed(geng::Key::PageUp) {
+                self.volume += delta_time;
             }
-        }
+            if self.geng.window().is_key_pressed(geng::Key::PageDown) {
+                self.volume -= delta_time;
+            }
+            self.volume = self.volume.clamp(0.0, 1.0);
 
-        for (t, _) in &mut self.spawn_particles {
-            *t += delta_time * 3.0;
-        }
-        self.spawn_particles.retain(|(t, _)| *t < 1.0);
+            let delta_time = delta_time as f32;
+            self.time += delta_time;
 
-        let mut sounds: Vec<(&[geng::Sound], Vec2<f32>)> = Vec::new();
+            self.update_interpolated(delta_time);
 
-        if let Some(me) = self.players.get_mut(&self.player_id) {
-            if let Some((time, _)) = &mut me.emote {
+            if let Some(time) = &mut self.explosion_time {
                 *time += delta_time;
                 if *time > 1.0 {
-                    me.emote = None;
+                    self.explosion_time = None;
                 }
             }
 
-            me.input = 0.0;
-
-            if let Some(pos) = self.touch_control {
-                me.input += ((pos.x - self.framebuffer_size.x as f32 / 2.0)
-                    / (self.framebuffer_size.x as f32 / 4.0))
-                    .clamp(-1.0, 1.0);
+            for (t, _) in &mut self.spawn_particles {
+                *t += delta_time * 3.0;
             }
+            self.spawn_particles.retain(|(t, _)| *t < 1.0);
 
-            if self.geng.window().is_key_pressed(geng::Key::A)
-                || self.geng.window().is_key_pressed(geng::Key::Left)
-            {
-                me.input -= 1.0;
-            }
-            if self.geng.window().is_key_pressed(geng::Key::D)
-                || self.geng.window().is_key_pressed(geng::Key::Right)
-            {
-                me.input += 1.0;
-            }
-        }
-        {
-            let model = self.model.get();
+            let mut sounds: Vec<(&[geng::Sound], Vec2<f32>)> = Vec::new();
 
-            self.player_skin_renderers
-                .retain(|id, _| model.players.get(id).is_some());
-            for player in &model.players {
-                let renderer = self
-                    .player_skin_renderers
-                    .entry(player.id)
-                    .or_insert_with(|| {
-                        skin::Renderer::new(&self.geng, &player.config, &self.assets)
-                    });
-                renderer.update(delta_time);
-            }
+            if let Some(me) = self.players.get_mut(&self.player_id) {
+                if let Some((time, _)) = &mut me.emote {
+                    *time += delta_time;
+                    if *time > 1.0 {
+                        me.emote = None;
+                    }
+                }
 
-            let my_player = self.interpolated_players.get(&self.player_id);
-            let mut target_player = my_player;
-            if my_player.is_none()
-                || (!my_player.as_ref().unwrap().is_riding && model.avalanche_position.is_some())
-            {
-                if let Some(player) = self
-                    .interpolated_players
-                    .iter()
-                    .min_by_key(|player| r32(player.position.y))
+                me.input = 0.0;
+
+                if let Some(pos) = self.touch_control {
+                    me.input += ((pos.x - self.framebuffer_size.x as f32 / 2.0)
+                        / (self.framebuffer_size.x as f32 / 4.0))
+                        .clamp(-1.0, 1.0);
+                }
+
+                if self.geng.window().is_key_pressed(geng::Key::A)
+                    || self.geng.window().is_key_pressed(geng::Key::Left)
                 {
-                    target_player = Some(player);
+                    me.input -= 1.0;
+                }
+                if self.geng.window().is_key_pressed(geng::Key::D)
+                    || self.geng.window().is_key_pressed(geng::Key::Right)
+                {
+                    me.input += 1.0;
                 }
             }
-            let mut target_center = if let Some(target_player) = target_player {
-                target_player.position + target_player.velocity * 0.5
-            } else {
-                vec2(0.0, 0.0)
-            };
-            self.camera.center +=
-                (target_center - self.camera.center) * (3.0 * delta_time).min(1.0);
+            {
+                let model = self.model.get();
 
-            if model.tick != self.last_model_tick {
-                self.last_model_tick = model.tick;
+                self.player_skin_renderers
+                    .retain(|id, _| model.players.get(id).is_some());
                 for player in &model.players {
-                    if player.id != self.player_id {
-                        if self.players.get(&player.id).is_none() {
+                    let renderer =
+                        self.player_skin_renderers
+                            .entry(player.id)
+                            .or_insert_with(|| {
+                                skin::Renderer::new(&self.geng, &player.config, &self.assets)
+                            });
+                    renderer.update(delta_time);
+                }
+
+                let my_player = self.interpolated_players.get(&self.player_id);
+                let mut target_player = my_player;
+                if my_player.is_none()
+                    || (!my_player.as_ref().unwrap().is_riding
+                        && model.avalanche_position.is_some())
+                {
+                    if let Some(player) = self
+                        .interpolated_players
+                        .iter()
+                        .min_by_key(|player| r32(player.position.y))
+                    {
+                        target_player = Some(player);
+                    }
+                }
+                let mut target_center = if let Some(target_player) = target_player {
+                    target_player.position + target_player.velocity * 0.5
+                } else {
+                    vec2(0.0, 0.0)
+                };
+                self.camera.center +=
+                    (target_center - self.camera.center) * (3.0 * delta_time).min(1.0);
+
+                if model.tick != self.last_model_tick {
+                    self.last_model_tick = model.tick;
+                    for player in &model.players {
+                        if player.id != self.player_id {
+                            if self.players.get(&player.id).is_none() {
+                                self.spawn_particles.push((0.0, player.position));
+                                let mut sfx = self.assets.spawn_sound.effect();
+                                sfx.set_volume(self.volume);
+                                sfx.play();
+                            }
+                            self.players.insert(player.clone());
+                        }
+                    }
+                    for player in &self.players {
+                        if player.id != self.player_id && model.players.get(&player.id).is_none() {
                             self.spawn_particles.push((0.0, player.position));
                             let mut sfx = self.assets.spawn_sound.effect();
                             sfx.set_volume(self.volume);
                             sfx.play();
                         }
-                        self.players.insert(player.clone());
+                    }
+                    self.players.retain(|player| {
+                        model.players.get(&player.id).is_some() || player.id == self.player_id
+                    });
+                }
+                if model.avalanche_position.is_none() {
+                    if let Some(player) = self.players.get_mut(&self.player_id) {
+                        player.seen_no_avalanche = true;
                     }
                 }
-                for player in &self.players {
-                    if player.id != self.player_id && model.players.get(&player.id).is_none() {
-                        self.spawn_particles.push((0.0, player.position));
-                        let mut sfx = self.assets.spawn_sound.effect();
-                        sfx.set_volume(self.volume);
-                        sfx.play();
-                    }
-                }
-                self.players.retain(|player| {
-                    model.players.get(&player.id).is_some() || player.id == self.player_id
-                });
-            }
-            if model.avalanche_position.is_none() {
-                if let Some(player) = self.players.get_mut(&self.player_id) {
-                    player.seen_no_avalanche = true;
-                }
-            }
-            if let Some(me) = self.players.get_mut(&self.player_id) {
-                if me.seen_no_avalanche && model.avalanche_position.is_some() {
-                    if !me.is_riding {
-                        for _ in 0..100 {
-                            self.explosion_time = Some(0.0);
-                            let mut sfx = self.assets.boom_sound.effect();
-                            sfx.set_volume(self.volume);
-                            sfx.play();
-                            break;
-                            self.explosion_particles.push(Particle {
-                                i_pos: vec2(0.0, 5.0),
-                                i_vel: vec2(global_rng().gen_range(0.0f32..=1.0).powf(0.2), 0.0)
+                if let Some(me) = self.players.get_mut(&self.player_id) {
+                    if me.seen_no_avalanche && model.avalanche_position.is_some() {
+                        if !me.is_riding {
+                            for _ in 0..100 {
+                                self.explosion_time = Some(0.0);
+                                let mut sfx = self.assets.boom_sound.effect();
+                                sfx.set_volume(self.volume);
+                                sfx.play();
+                                break;
+                                self.explosion_particles.push(Particle {
+                                    i_pos: vec2(0.0, 5.0),
+                                    i_vel: vec2(
+                                        global_rng().gen_range(0.0f32..=1.0).powf(0.2),
+                                        0.0,
+                                    )
                                     .rotate(global_rng().gen_range(-f32::PI..=f32::PI))
-                                    * 5.0,
+                                        * 5.0,
+                                    i_time: self.time,
+                                    i_size: 0.4,
+                                    i_opacity: 0.3,
+                                })
+                            }
+                            me.is_riding = true;
+                        }
+                    }
+                    if me.crash_timer > 2.0 {
+                        self.model
+                            .send(Message::Score((-me.position.y * 100.0) as i32));
+                        me.respawn();
+                    }
+                }
+                for player in &mut self.players {
+                    let shape_point = model.track.at(player.position.y);
+                    if !player.is_riding {
+                        player.update_walk(delta_time);
+                        player.position.x = player.position.x.clamp(
+                            shape_point.safe_left + player.radius,
+                            shape_point.safe_right - player.radius,
+                        );
+                    } else {
+                        player.update_riding(delta_time);
+                        for obstacle in model
+                            .track
+                            .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
+                        {
+                            let delta_pos = player.position - obstacle.position;
+                            let peneration = player.radius + obstacle.radius - delta_pos.len();
+                            if peneration > 0.0 {
+                                let normal = delta_pos.normalize_or_zero();
+                                player.position += normal * peneration;
+                                player.velocity -= normal * Vec2::dot(player.velocity, normal);
+                                if !player.crashed {
+                                    player.crashed = true;
+                                    sounds.push((&self.assets.crash_sounds, player.position));
+                                }
+                            }
+                        }
+                        if player.position.x < shape_point.left + player.radius
+                            || player.position.x > shape_point.right - player.radius
+                        {
+                            // if player.position.x.abs() > TRACK_WIDTH - player.radius {
+                            if !player.crashed {
+                                player.crashed = true;
+                                sounds.push((&self.assets.crash_sounds, player.position));
+                            }
+                        }
+                        if let Some(position) = model.avalanche_position {
+                            if player.position.y > position {
+                                if !player.crashed {
+                                    player.crashed = true;
+                                    sounds.push((&self.assets.crash_sounds, player.position));
+                                }
+                            }
+                        }
+                        player.position.x = player.position.x.clamp(
+                            shape_point.left + player.radius,
+                            shape_point.right - player.radius,
+                        );
+                    }
+                }
+                self.next_particle -= delta_time;
+                while self.next_particle < 0.0 {
+                    self.next_particle += 1.0 / 100.0;
+                    let mut particles = Vec::new();
+                    for player in &self.interpolated_players {
+                        if player.is_riding {
+                            particles.push(Particle {
+                                i_pos: player.position,
+                                // i_vel: vec2(
+                                //     global_rng().gen_range(-1.0..=1.0),
+                                //     global_rng().gen_range(-1.0..=1.0),
+                                // ) / 3.0,
+                                i_vel: Vec2::ZERO,
+                                i_time: self.time,
+                                i_size: 0.2,
+                                i_opacity: 1.0,
+                            });
+                            let normal = vec2(1.0, 0.0).rotate(player.rotation);
+                            let force = Vec2::dot(player.velocity, normal).abs();
+                            particles.push(Particle {
+                                i_pos: player.position,
+                                i_vel: vec2(
+                                    global_rng().gen_range(-1.0..=1.0),
+                                    global_rng().gen_range(-1.0..=1.0),
+                                ) / 2.0
+                                    + player.velocity,
                                 i_time: self.time,
                                 i_size: 0.4,
-                                i_opacity: 0.3,
-                            })
-                        }
-                        me.is_riding = true;
-                    }
-                }
-                if me.crash_timer > 2.0 {
-                    self.model
-                        .send(Message::Score((-me.position.y * 100.0) as i32));
-                    me.respawn();
-                }
-            }
-            for player in &mut self.players {
-                let shape_point = model.track.at(player.position.y);
-                if !player.is_riding {
-                    player.update_walk(delta_time);
-                    player.position.x = player.position.x.clamp(
-                        shape_point.safe_left + player.radius,
-                        shape_point.safe_right - player.radius,
-                    );
-                } else {
-                    player.update_riding(delta_time);
-                    for obstacle in model
-                        .track
-                        .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
-                    {
-                        let delta_pos = player.position - obstacle.position;
-                        let peneration = player.radius + obstacle.radius - delta_pos.len();
-                        if peneration > 0.0 {
-                            let normal = delta_pos.normalize_or_zero();
-                            player.position += normal * peneration;
-                            player.velocity -= normal * Vec2::dot(player.velocity, normal);
-                            if !player.crashed {
-                                player.crashed = true;
-                                sounds.push((&self.assets.crash_sounds, player.position));
-                            }
+                                i_opacity: 0.5 * force / Player::MAX_SPEED,
+                            });
                         }
                     }
-                    if player.position.x < shape_point.left + player.radius
-                        || player.position.x > shape_point.right - player.radius
-                    {
-                        // if player.position.x.abs() > TRACK_WIDTH - player.radius {
-                        if !player.crashed {
-                            player.crashed = true;
-                            sounds.push((&self.assets.crash_sounds, player.position));
+                    self.particles.extend(particles);
+                    if let Some(pos) = model.avalanche_position {
+                        for _ in 0..10 {
+                            self.particles.push(Particle {
+                                i_pos: vec2(
+                                    self.camera.center.x
+                                        + global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH),
+                                    pos + global_rng().gen_range(-3.0..=0.0),
+                                ),
+                                i_vel: vec2(
+                                    global_rng().gen_range(-1.0..=1.0),
+                                    global_rng().gen_range(-1.0..=1.0),
+                                ),
+                                i_time: self.time,
+                                i_size: 0.4,
+                                i_opacity: 0.5,
+                            });
                         }
-                    }
-                    if let Some(position) = model.avalanche_position {
-                        if player.position.y > position {
-                            if !player.crashed {
-                                player.crashed = true;
-                                sounds.push((&self.assets.crash_sounds, player.position));
-                            }
-                        }
-                    }
-                    player.position.x = player.position.x.clamp(
-                        shape_point.left + player.radius,
-                        shape_point.right - player.radius,
-                    );
-                }
-            }
-            self.next_particle -= delta_time;
-            while self.next_particle < 0.0 {
-                self.next_particle += 1.0 / 100.0;
-                let mut particles = Vec::new();
-                for player in &self.interpolated_players {
-                    if player.is_riding {
-                        particles.push(Particle {
-                            i_pos: player.position,
-                            // i_vel: vec2(
-                            //     global_rng().gen_range(-1.0..=1.0),
-                            //     global_rng().gen_range(-1.0..=1.0),
-                            // ) / 3.0,
-                            i_vel: Vec2::ZERO,
-                            i_time: self.time,
-                            i_size: 0.2,
-                            i_opacity: 1.0,
-                        });
-                        let normal = vec2(1.0, 0.0).rotate(player.rotation);
-                        let force = Vec2::dot(player.velocity, normal).abs();
-                        particles.push(Particle {
-                            i_pos: player.position,
-                            i_vel: vec2(
-                                global_rng().gen_range(-1.0..=1.0),
-                                global_rng().gen_range(-1.0..=1.0),
-                            ) / 2.0
-                                + player.velocity,
-                            i_time: self.time,
-                            i_size: 0.4,
-                            i_opacity: 0.5 * force / Player::MAX_SPEED,
-                        });
-                    }
-                }
-                self.particles.extend(particles);
-                if let Some(pos) = model.avalanche_position {
-                    for _ in 0..10 {
-                        self.particles.push(Particle {
-                            i_pos: vec2(
-                                self.camera.center.x
-                                    + global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH),
-                                pos + global_rng().gen_range(-3.0..=0.0),
-                            ),
-                            i_vel: vec2(
-                                global_rng().gen_range(-1.0..=1.0),
-                                global_rng().gen_range(-1.0..=1.0),
-                            ),
-                            i_time: self.time,
-                            i_size: 0.4,
-                            i_opacity: 0.5,
-                        });
                     }
                 }
             }
-        }
-        self.particles
-            .retain(|particle| particle.i_time > self.time - 1.0);
-        for particle in &mut *self.particles {
-            particle.i_pos += particle.i_vel * delta_time;
-            particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
-        }
-        self.explosion_particles
-            .retain(|particle| particle.i_time > self.time - 1.0);
-        for particle in &mut *self.explosion_particles {
-            particle.i_pos += particle.i_vel * delta_time;
-            particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
-        }
-        if let Some(player) = self.players.get(&self.player_id) {
-            self.model.send(Message::UpdatePlayer(player.clone()));
-        }
+            self.particles
+                .retain(|particle| particle.i_time > self.time - 1.0);
+            for particle in &mut *self.particles {
+                particle.i_pos += particle.i_vel * delta_time;
+                particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
+            }
+            self.explosion_particles
+                .retain(|particle| particle.i_time > self.time - 1.0);
+            for particle in &mut *self.explosion_particles {
+                particle.i_pos += particle.i_vel * delta_time;
+                particle.i_vel -= particle.i_vel.clamp_len(..=delta_time * 5.0);
+            }
+            if let Some(player) = self.players.get(&self.player_id) {
+                self.model.send(Message::UpdatePlayer(player.clone()));
+            }
 
-        for event in self.model.update() {
-            // TODO handle
-        }
+            for event in self.model.update() {
+                // TODO handle
+            }
 
-        for (sounds, pos) in sounds {
-            self.play_sound(sounds.choose(&mut global_rng()).unwrap(), pos);
+            for (sounds, pos) in sounds {
+                self.play_sound(sounds.choose(&mut global_rng()).unwrap(), pos);
+            }
         }
     }
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
