@@ -34,7 +34,7 @@ impl Track {
     }
     pub fn new(seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
-        const TRACK_LEN: f32 = 2000.0;
+        const TRACK_LEN: f32 = 1500.0;
         const TRACK_WIDTH: f32 = 30.0;
         const SAFE_MIDDLE: f32 = 2.5;
         const OBSTACLES_DENSITY: f32 = 0.2;
