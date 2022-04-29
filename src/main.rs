@@ -39,6 +39,7 @@ pub struct Game {
     model: simple_net::Remote<Model>,
     players: Collection<Player>,
     interpolated_players: Collection<Player>,
+    player_skin_renderers: HashMap<Id, skin::Renderer>,
     next_particle: f32,
     trail_texture: (ugli::Texture, Quad<f32>),
     particles: ugli::VertexBuffer<Particle>,
@@ -82,6 +83,7 @@ impl Game {
             model,
             player_id,
             last_model_tick: u64::MAX,
+            player_skin_renderers: default(),
             players: {
                 let mut result = Collection::new();
                 if let (Some(name), Some(config)) = (name, config) {
@@ -89,7 +91,6 @@ impl Game {
                         emote: None,
                         id: player_id,
                         name,
-                        old_config: PlayerConfig::random(&assets.player),
                         config,
                         crash_position: Vec2::ZERO,
                         is_riding: false,
@@ -235,92 +236,23 @@ impl Game {
     }
 
     fn draw_player(&self, framebuffer: &mut ugli::Framebuffer, player: &Player) {
-        let equipment: &ugli::Texture = &self.assets.player.equipment[player.old_config.equipment];
-        if !player.crashed && player.is_riding {
-            self.draw_texture(
+        if let Some(renderer) = self.player_skin_renderers.get(&player.id) {
+            renderer.draw(
                 framebuffer,
-                equipment,
-                Mat3::translate(player.position) * Mat3::rotate(player.rotation),
-                Color::WHITE,
-            );
-        } else if !player.crashed {
-            self.draw_texture(
-                framebuffer,
-                equipment,
-                Mat3::translate(player.position + vec2(0.0, 1.0)),
-                Color::WHITE,
-            );
-        }
-
-        if player.crashed {
-            let t = player.crash_timer.min(1.0);
-            self.draw_texture(
-                framebuffer,
-                equipment,
-                Mat3::translate(
-                    player.crash_position
-                        + player.ski_velocity * t
-                        + vec2(0.0, (1.0 - (t * 2.0 - 1.0).sqr()) * 5.0),
-                ) * Mat3::rotate(player.ski_rotation + t * 5.0),
-                Color::WHITE,
-            );
-        }
-
-        let final_matrix = Mat3::translate(
-            player.position
-                + if player.is_riding {
-                    vec2(0.0, 0.0)
-                } else {
-                    vec2(
-                        0.0,
-                        player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
-                    )
+                &self.camera,
+                &skin::DrawInstance {
+                    position: player.position,
+                    rotation: player.rotation,
+                    velocity: player.velocity,
+                    crashed: player.crashed,
+                    crash_timer: player.crash_timer,
+                    ski_velocity: player.ski_velocity,
+                    ski_rotation: player.ski_rotation,
+                    is_riding: player.is_riding,
+                    crash_position: player.crash_position,
                 },
-        ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0))
-            * Mat3::scale_uniform(1.0 / 64.0);
-        let turn = if player.is_riding {
-            player.rotation / Player::ROTATION_LIMIT
-        } else {
-            player.velocity.x / Player::MAX_WALK_SPEED
-        };
-        let speed = if player.is_riding {
-            (player.velocity.len() / Player::MAX_SPEED).min(1.0)
-        } else {
-            0.0
-        };
-        let mut part_matrices: HashMap<&str, Mat3<f32>> = HashMap::new();
-        for part in &player.config.parts {
-            let texture = &self.assets.textures[&part.texture];
-            let parent_matrix = match &part.parent {
-                Some(name) => part_matrices[name.as_str()],
-                None => Mat3::identity(),
-            };
-            let position = (parent_matrix
-                * part
-                    .position
-                    .interpolate(turn, speed, self.time)
-                    .extend(1.0))
-            .xy();
-            // Mat3::translate(position)
-            let mut matrix =
-                parent_matrix * Mat3::translate(part.position.interpolate(turn, speed, self.time));
-            if let Some(rotation) = &part.rotation {
-                matrix *=
-                    Mat3::rotate(rotation.interpolate(turn, speed, self.time) * f32::PI / 180.0);
-            }
-            if let Some(scale) = &part.scale {
-                matrix *= Mat3::scale(scale.interpolate(turn, speed, self.time));
-            }
-            matrix *= Mat3::translate(-part.origin);
-            if let Some(name) = &part.name {
-                part_matrices.insert(name.as_str(), matrix);
-            }
-            let matrix = matrix
-                * Mat3::scale(texture.size().map(|x| x as f32) / 2.0)
-                * Mat3::translate(vec2(1.0, 1.0));
-            self.draw_texture(framebuffer, texture, final_matrix * matrix, Color::WHITE);
+            );
         }
-
         if let Some((_, index)) = player.emote {
             self.draw_texture(
                 framebuffer,
@@ -352,7 +284,6 @@ impl Game {
                 emote: player.emote,
                 name: player.name.clone(),
                 position: i.position + (player.position - i.position) / EXPECTED_PING * delta_time,
-                old_config: player.old_config.clone(),
                 config: player.config.clone(),
                 radius: player.radius,
                 rotation: player.rotation,
@@ -516,6 +447,18 @@ impl geng::State for Game {
         }
         {
             let model = self.model.get();
+
+            self.player_skin_renderers
+                .retain(|id, _| model.players.get(id).is_some());
+            for player in &model.players {
+                let renderer = self
+                    .player_skin_renderers
+                    .entry(player.id)
+                    .or_insert_with(|| {
+                        skin::Renderer::new(&self.geng, &player.config, &self.assets)
+                    });
+                renderer.update(delta_time);
+            }
 
             let my_player = self.interpolated_players.get(&self.player_id);
             let mut target_player = my_player;
@@ -722,6 +665,7 @@ impl geng::State for Game {
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         self.framebuffer_size = framebuffer.size();
         let model = self.model.get();
+
         let my_player = self.players.get(&self.player_id);
         // self
         //     .interpolated_players
@@ -1279,15 +1223,22 @@ fn main() {
             geng::LoadingScreen::new(
                 &geng,
                 geng::EmptyLoadingScreen,
-                <Assets as geng::LoadAsset>::load(&geng, &static_path()),
+                <Assets as geng::LoadAsset>::load(&geng, &static_path()).then({
+                    let geng = geng.clone();
+                    move |assets| async move {
+                        match assets {
+                            Ok(mut assets) => {
+                                assets.process(&geng).await;
+                                Ok(assets)
+                            }
+                            Err(e) => Err(e),
+                        }
+                    }
+                }),
                 {
                     let geng = geng.clone();
                     move |assets| {
                         let mut assets = assets.expect("Failed to load assets");
-                        assets.border.set_wrap_mode(ugli::WrapMode::Repeat);
-                        assets.ride_sound.looped = true;
-                        assets.avalanche_sound.looped = true;
-                        assets.music.looped = true;
                         if opt.spectator {
                             Box::new(Game::new(
                                 &geng,

@@ -7,93 +7,72 @@ pub use texture::*;
 #[derive(geng::Assets)]
 // #[asset(sequential)]
 pub struct PlayerAssets {
-    #[asset(range = "1..=5", path = "coat/*.png")]
-    pub coat: Vec<Texture>,
-    #[asset(range = "1..=4", path = "hat/*.png")]
-    pub hat: Vec<Texture>,
-    #[asset(range = "1..=5", path = "pants/*.png")]
-    pub pants: Vec<Texture>,
-    #[asset(range = "1..=4", path = "face/*.png")]
-    pub face: Vec<Texture>,
-    #[asset(range = "1..=8", path = "equipment/*.png")]
-    pub equipment: Vec<Texture>,
-    pub body: Texture,
-    #[asset(load_with = "load_custom(geng, base_path.join(\"custom.json\"))")]
-    pub custom: HashMap<String, Texture>,
+    #[asset(load_with = "load_items(geng, base_path.join(\"coat\"))")]
+    pub coat: HashMap<String, skin::ItemConfig>,
+    #[asset(load_with = "load_items(geng, base_path.join(\"hat\"))")]
+    pub hat: HashMap<String, skin::ItemConfig>,
+    #[asset(load_with = "load_items(geng, base_path.join(\"pants\"))")]
+    pub pants: HashMap<String, skin::ItemConfig>,
+    #[asset(load_with = "load_items(geng, base_path.join(\"face\"))")]
+    pub face: HashMap<String, skin::ItemConfig>,
+    #[asset(load_with = "load_equipment(geng, base_path.join(\"equipment\"))")]
+    pub equipment: HashMap<String, ugli::Texture>,
+    pub body: skin::ItemConfig,
+    #[asset(load_with = "load_secret(geng, base_path.to_owned())")]
+    pub secret: HashMap<String, skin::SecretConfig>,
 }
 
-async fn load_custom(
+async fn load_equipment(
+    geng: &Geng,
+    base_path: std::path::PathBuf,
+) -> anyhow::Result<HashMap<String, ugli::Texture>> {
+    let json: String = geng::LoadAsset::load(geng, &base_path.join("_list.json")).await?;
+    let list: Vec<String> = serde_json::from_str(&json)?;
+    let result = future::join_all(
+        list.iter()
+            .map(|path| geng::LoadAsset::load(geng, &base_path.join(format!("{}.png", path)))),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
+    Ok(list.into_iter().zip(result).collect())
+}
+
+async fn load_items(
+    geng: &Geng,
+    base_path: std::path::PathBuf,
+) -> anyhow::Result<HashMap<String, skin::ItemConfig>> {
+    let json: String = geng::LoadAsset::load(geng, &base_path.join("_list.json")).await?;
+    let list: Vec<String> = serde_json::from_str(&json)?;
+    let result = future::join_all(
+        list.iter()
+            .map(|path| geng::LoadAsset::load(geng, &base_path.join(format!("{}.json", path)))),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
+    Ok(list.into_iter().zip(result).collect())
+}
+
+async fn load_secret(
     geng: &Geng,
     path: std::path::PathBuf,
-) -> anyhow::Result<HashMap<String, Texture>> {
-    let json: String = geng::LoadAsset::load(geng, &path).await?;
+) -> anyhow::Result<HashMap<String, skin::SecretConfig>> {
+    let base_path = path.join("secret");
+    let json: String = geng::LoadAsset::load(geng, &base_path.join("_list.json")).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
-    let mut result = HashMap::new();
-    for name in list {
-        let texture =
-            geng::LoadAsset::load(geng, &path.parent().unwrap().join(format!("{name}.png")))
-                .await?;
-        result.insert(name, texture);
-    }
-    Ok(result)
-}
-
-impl PlayerAssets {
-    pub fn assemble(&self, geng: &Geng, config: &PlayerConfig) -> Texture {
-        let mut result = ugli::Texture::new_uninitialized(geng.ugli(), self.coat[0].size());
-        {
-            let mut framebuffer = ugli::Framebuffer::new_color(
-                geng.ugli(),
-                ugli::ColorAttachment::Texture(&mut result),
-            );
-            let framebuffer = &mut framebuffer;
-            ugli::clear(framebuffer, Some(Color::TRANSPARENT_WHITE), None);
-            let camera = geng::Camera2d {
-                center: Vec2::ZERO,
-                rotation: 0.0,
-                fov: 2.0,
-            };
-            if let Some(custom) = &config.custom {
-                geng.draw_2d(
-                    framebuffer,
-                    &camera,
-                    &draw_2d::TexturedQuad::unit(&self.custom[custom]),
-                );
-            } else {
-                geng.draw_2d(
-                    framebuffer,
-                    &camera,
-                    &draw_2d::TexturedQuad::unit(&self.body),
-                );
-                geng.draw_2d(
-                    framebuffer,
-                    &camera,
-                    &draw_2d::TexturedQuad::unit(&self.face[config.face]),
-                );
-                geng.draw_2d(
-                    framebuffer,
-                    &camera,
-                    &draw_2d::TexturedQuad::unit(&self.hat[config.hat]),
-                );
-                geng.draw_2d(
-                    framebuffer,
-                    &camera,
-                    &draw_2d::TexturedQuad::unit(&self.pants[config.pants]),
-                );
-                geng.draw_2d(
-                    framebuffer,
-                    &camera,
-                    &draw_2d::TexturedQuad::unit(&self.coat[config.coat]),
-                );
-            }
-        }
-        result.into()
-    }
+    let result = future::join_all(
+        list.iter()
+            .map(|path| geng::LoadAsset::load(geng, &base_path.join(path).join("config.json"))),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
+    Ok(list.into_iter().zip(result).collect())
 }
 
 #[derive(geng::Assets)]
 pub struct Assets {
-    pub player_config: skin::Config,
     pub player: PlayerAssets,
     #[asset(load_with = "load_obstacles(&geng, &base_path)")]
     pub obstacles: Vec<ObstacleAssets>,
@@ -122,8 +101,91 @@ pub struct Assets {
     // #[asset(path = "music.mp3")]
     #[asset(path = "LD-50.mp3")]
     pub music: geng::Sound,
-    #[asset(load_with = "load_textures(&geng, &base_path)")]
+    #[asset(load_with = "async { Ok::<_, anyhow::Error>(HashMap::new()) }")]
     pub textures: HashMap<String, Texture>,
+}
+
+impl Assets {
+    pub async fn process(&mut self, geng: &Geng) {
+        self.border.set_wrap_mode(ugli::WrapMode::Repeat);
+        self.ride_sound.looped = true;
+        self.avalanche_sound.looped = true;
+        self.music.looped = true;
+        let mut paths = Vec::new();
+        paths.extend(
+            self.player
+                .body
+                .parts
+                .iter()
+                .map(|part| part.texture.as_str()),
+        );
+        paths.extend(
+            self.player
+                .hat
+                .values()
+                .flat_map(|item| item.parts.iter().map(|part| part.texture.as_str())),
+        );
+        paths.extend(
+            self.player
+                .face
+                .values()
+                .flat_map(|item| item.parts.iter().map(|part| part.texture.as_str())),
+        );
+        paths.extend(
+            self.player
+                .coat
+                .values()
+                .flat_map(|item| item.parts.iter().map(|part| part.texture.as_str())),
+        );
+        paths.extend(
+            self.player
+                .pants
+                .values()
+                .flat_map(|item| item.parts.iter().map(|part| part.texture.as_str())),
+        );
+        for secret in self.player.secret.values() {
+            if let Some(parts) = &secret.parts {
+                paths.extend(parts.iter().map(|part| part.texture.as_str()));
+            }
+            if let Some(name) = &secret.hat {
+                if name.ends_with(".png") {
+                    paths.push(name.as_str());
+                }
+            }
+            if let Some(name) = &secret.coat {
+                if name.ends_with(".png") {
+                    paths.push(name.as_str());
+                }
+            }
+            if let Some(name) = &secret.pants {
+                if name.ends_with(".png") {
+                    paths.push(name.as_str());
+                }
+            }
+            if let Some(name) = &secret.equipment {
+                if name.ends_with(".png") {
+                    paths.push(name.as_str());
+                }
+            }
+            if let Some(name) = &secret.face {
+                if name.ends_with(".png") {
+                    paths.push(name.as_str());
+                }
+            }
+        }
+        let result = future::join_all(
+            paths
+                .iter()
+                .map(|path| geng::LoadAsset::load(geng, &static_path().join(path))),
+        )
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+        for (path, texture) in paths.into_iter().zip(result) {
+            self.textures.insert(path.to_owned(), texture);
+        }
+    }
 }
 
 async fn load_obstacles(

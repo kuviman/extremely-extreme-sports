@@ -191,8 +191,6 @@ pub struct Player {
     pub name: String,
     pub position: Vec2<f32>,
     #[diff = "eq"]
-    pub old_config: PlayerConfig,
-    #[diff = "eq"]
     pub config: skin::Config,
     pub radius: f32,
     pub rotation: f32,
@@ -260,7 +258,6 @@ impl Player {
             is_riding: false,
             seen_no_avalanche: false,
             name: self.name.clone(),
-            old_config: self.old_config.clone(),
             config: self.config.clone(),
             ..*self
         };

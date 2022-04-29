@@ -10,11 +10,11 @@ pub struct Lobby {
     name: String,
     camera: geng::Camera2d,
     mouse: Vec2<f32>,
-    new_config: PlayerConfig,
     config: skin::Config,
     keyboard: bool,
     customizer: bool,
     leaderboard: bool,
+    skin_renderer: skin::Renderer,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -47,6 +47,49 @@ impl Lobby {
         player_id: Id,
         model: simple_net::Remote<Model>,
     ) -> Self {
+        let random_config = skin::Config::random(&assets.player);
+        let config = match autosave::load("player.json") {
+            Some(mut config) => {
+                let correct = |config: &skin::Config| -> bool {
+                    if let Some(name) = &config.secret {
+                        if !assets.player.secret.contains_key(name) {
+                            return false;
+                        }
+                    }
+                    if let Some(name) = &config.hat {
+                        if !assets.player.hat.contains_key(name) {
+                            return false;
+                        }
+                    }
+                    if let Some(name) = &config.face {
+                        if !assets.player.face.contains_key(name) {
+                            return false;
+                        }
+                    }
+                    if let Some(name) = &config.coat {
+                        if !assets.player.coat.contains_key(name) {
+                            return false;
+                        }
+                    }
+                    if let Some(name) = &config.pants {
+                        if !assets.player.pants.contains_key(name) {
+                            return false;
+                        }
+                    }
+                    if let Some(name) = &config.equipment {
+                        if !assets.player.equipment.contains_key(name) {
+                            return false;
+                        }
+                    }
+                    true
+                };
+                if !correct(&config) {
+                    config = random_config;
+                }
+                config
+            }
+            None => random_config,
+        };
         Self {
             framebuffer_size: vec2(1, 1),
             geng: geng.clone(),
@@ -65,11 +108,8 @@ impl Lobby {
                 None => String::new(),
             },
             mouse: Vec2::ZERO,
-            new_config: match autosave::load("player.json") {
-                Some(config) => config,
-                None => PlayerConfig::random(&assets.player),
-            },
-            config: assets.player_config.clone(),
+            skin_renderer: skin::Renderer::new(geng, &config, assets),
+            config,
             customizer: false,
             leaderboard: false,
         }
@@ -134,10 +174,7 @@ impl Lobby {
                 AABB::point(vec2(0.5, -0.4))
                     .extend_positive(vec2("back".len() as f32, 1.0) * size * 2.0),
             ];
-            if self.assets.player.custom.contains_key(&self.name)
-                || self.name == "potkirland"
-                || self.name == "jitspoe"
-            {
+            if self.assets.player.secret.contains_key(&self.name) {
                 result.push(
                     AABB::point(vec2(0.0, 1.3))
                         .extend_positive(vec2("secret".len() as f32, 1.0) * size * 1.0),
@@ -193,64 +230,109 @@ impl Lobby {
             // "hat", "face", "coat", "pants", "equipment"
             match index {
                 0 => {
-                    self.new_config.hat += 1;
-                    self.new_config.hat %= 4; // self.assets.player.hat.len();
+                    let options: Vec<&str> =
+                        self.assets.player.hat.keys().map(|s| s.as_str()).collect();
+                    if let Some(hat) = &mut self.config.hat {
+                        let current = options.iter().position(|s| s == hat).unwrap_or(0);
+                        *hat = options[(current + 1) % options.len()].to_owned();
+                    }
                 }
                 1 => {
-                    self.new_config.face += 1;
-                    self.new_config.face %= 4; //self.assets.player.face.len();
+                    let options: Vec<&str> =
+                        self.assets.player.face.keys().map(|s| s.as_str()).collect();
+                    if let Some(face) = &mut self.config.face {
+                        let current = options.iter().position(|s| s == face).unwrap_or(0);
+                        *face = options[(current + 1) % options.len()].to_owned();
+                    }
                 }
                 2 => {
-                    self.new_config.coat += 1;
-                    self.new_config.coat %= 4; // self.assets.player.coat.len();
+                    let options: Vec<&str> =
+                        self.assets.player.coat.keys().map(|s| s.as_str()).collect();
+                    if let Some(coat) = &mut self.config.coat {
+                        let current = options.iter().position(|s| s == coat).unwrap_or(0);
+                        *coat = options[(current + 1) % options.len()].to_owned();
+                    }
                 }
                 3 => {
-                    self.new_config.pants += 1;
-                    self.new_config.pants %= 4; // self.assets.player.pants.len();
+                    let options: Vec<&str> = self
+                        .assets
+                        .player
+                        .pants
+                        .keys()
+                        .map(|s| s.as_str())
+                        .collect();
+                    if let Some(pants) = &mut self.config.pants {
+                        let current = options.iter().position(|s| s == pants).unwrap_or(0);
+                        *pants = options[(current + 1) % options.len()].to_owned();
+                    }
                 }
                 4 => {
-                    self.new_config.equipment += 1;
-                    self.new_config.equipment %= 2; // self.assets.player.equipment.len();
+                    let options: Vec<&str> = self
+                        .assets
+                        .player
+                        .equipment
+                        .keys()
+                        .map(|s| s.as_str())
+                        .collect();
+                    if let Some(equipment) = &mut self.config.equipment {
+                        let current = options.iter().position(|s| s == equipment).unwrap_or(0);
+                        *equipment = options[(current + 1) % options.len()].to_owned();
+                    }
                 }
                 5 => {
-                    self.new_config = PlayerConfig::random(&self.assets.player);
+                    self.config = skin::Config::random(&self.assets.player);
                 }
                 6 => {
                     self.customizer = false;
                 }
                 7 => {
-                    if self.assets.player.custom.contains_key(&self.name) {
-                        self.new_config.custom = Some(self.name.clone());
+                    if let Some(config) = self.assets.player.secret.get(&self.name) {
+                        self.config = skin::Config {
+                            secret: if config.parts.is_some() {
+                                Some(self.name.clone())
+                            } else {
+                                None
+                            },
+                            hat: config.hat.clone(),
+                            coat: config.coat.clone(),
+                            pants: config.pants.clone(),
+                            equipment: config.equipment.clone(),
+                            face: config.face.clone(),
+                        };
                     }
-                    if self.name == "6fu" {
-                        self.new_config.equipment = 3;
-                    }
-                    if self.name == "kidgiraffe" {
-                        self.new_config.equipment = 2;
-                    }
-                    if self.name == "potkirland" {
-                        self.new_config.pants = 4;
-                        self.new_config.coat = 4;
-                        self.new_config.face = 0;
-                        self.new_config.hat = 3;
-                    }
-                    if self.name == "wendel" {
-                        self.new_config.equipment = 5;
-                    }
-                    if self.name == "jared" || self.name == "fizruk" {
-                        self.new_config.equipment = 6;
-                    }
-                    if self.name == "jitspoe" {
-                        self.new_config.equipment = 7;
-                        self.new_config.pants = 3;
-                        self.new_config.coat = 1;
-                        self.new_config.face = 3;
-                        self.new_config.hat = 0;
-                    }
+                    // if self.assets.player.custom.contains_key(&self.name) {
+                    //     self.old_config.custom = Some(self.name.clone());
+                    // }
+                    // if self.name == "6fu" {
+                    //     self.old_config.equipment = 3;
+                    // }
+                    // if self.name == "kidgiraffe" {
+                    //     self.old_config.equipment = 2;
+                    // }
+                    // if self.name == "potkirland" {
+                    //     self.old_config.pants = 4;
+                    //     self.old_config.coat = 4;
+                    //     self.old_config.face = 0;
+                    //     self.old_config.hat = 3;
+                    // }
+                    // if self.name == "wendel" {
+                    //     self.old_config.equipment = 5;
+                    // }
+                    // if self.name == "jared" || self.name == "fizruk" {
+                    //     self.old_config.equipment = 6;
+                    // }
+                    // if self.name == "jitspoe" {
+                    //     self.old_config.equipment = 7;
+                    //     self.old_config.pants = 3;
+                    //     self.old_config.coat = 1;
+                    //     self.old_config.face = 3;
+                    //     self.old_config.hat = 0;
+                    // }
                 }
                 _ => unreachable!(),
             }
-            autosave::save("player.json", &self.new_config);
+            self.skin_renderer = skin::Renderer::new(&self.geng, &self.config, &self.assets);
+            autosave::save("player.json", &self.config);
         } else if self.leaderboard {
             match index {
                 0 => {
@@ -447,22 +529,20 @@ impl geng::State for Lobby {
             }
         } else {
             // Draw player
-            self.geng.draw_2d(
+            self.skin_renderer.draw(
                 framebuffer,
                 &self.camera,
-                &draw_2d::TexturedQuad::unit(
-                    &self.assets.player.equipment[self.new_config.equipment],
-                )
-                .transform(Mat3::rotate(0.1))
-                .translate(vec2(-0.5, 1.0)),
-            );
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::TexturedQuad::unit(
-                    &self.assets.player.assemble(&self.geng, &self.new_config),
-                )
-                .translate(vec2(-0.5, 0.0)),
+                &skin::DrawInstance {
+                    position: vec2(-0.5, 0.0),
+                    rotation: 0.0,
+                    velocity: Vec2::ZERO,
+                    crashed: false,
+                    crash_timer: 0.0,
+                    ski_velocity: Vec2::ZERO,
+                    ski_rotation: 0.0,
+                    is_riding: false,
+                    crash_position: Vec2::ZERO,
+                },
             );
 
             let c = if AABB::point(vec2(0.5, 1.1))

@@ -30,6 +30,9 @@ impl<T: WiggleThing> Wiggle<T> {
     fn frequency(&self) -> f32 {
         self.frequency.unwrap_or(0.0)
     }
+    fn get(&self, phase: f32) -> T {
+        self.base + self.amplitude() * phase.sin()
+    }
 }
 
 impl<T: WiggleThing> Add for Wiggle<T> {
@@ -62,7 +65,7 @@ pub struct Inter<T> {
 }
 
 impl<T: WiggleThing> Inter<T> {
-    pub fn interpolate(&self, turn: f32, speed: f32, time: f32) -> T {
+    pub fn interpolate(&self, turn: f32, speed: f32) -> Wiggle<T> {
         let mut wiggle = self.still;
         if let Some(max_speed) = self.max_speed {
             wiggle = wiggle * (1.0 - speed) + max_speed * speed;
@@ -70,7 +73,7 @@ impl<T: WiggleThing> Inter<T> {
         if let Some(addition) = self.turn_addition {
             wiggle = wiggle + addition * turn;
         }
-        wiggle.base + wiggle.amplitude() * (time * wiggle.frequency() * 2.0 * f32::PI).sin()
+        wiggle
     }
 }
 
@@ -87,6 +90,282 @@ pub struct Part {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::Assets)]
 #[asset(json)]
-pub struct Config {
+pub struct SecretConfig {
+    pub parts: Option<Vec<Part>>,
+    pub hat: Option<String>,
+    pub coat: Option<String>,
+    pub pants: Option<String>,
+    pub equipment: Option<String>,
+    pub face: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::Assets)]
+#[asset(json)]
+pub struct ItemConfig {
     pub parts: Vec<Part>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::Assets)]
+// #[serde(tag = "type")]
+#[asset(json)]
+pub struct Config {
+    pub secret: Option<String>,
+    pub hat: Option<String>,
+    pub coat: Option<String>,
+    pub pants: Option<String>,
+    pub equipment: Option<String>,
+    pub face: Option<String>,
+}
+
+impl Config {
+    pub fn parts<'a>(&'a self, assets: &'a Assets) -> Box<dyn Iterator<Item = &'a Part> + 'a> {
+        let mut result = Vec::new();
+        if let Some(name) = &self.secret {
+            result.extend(
+                assets.player.secret[name]
+                    .parts
+                    .iter()
+                    .flat_map(|parts| parts.iter()),
+            );
+        } else {
+            result.extend(assets.player.body.parts.iter());
+        }
+        if let Some(name) = &self.face {
+            result.extend(assets.player.face[name].parts.iter());
+        }
+        if let Some(name) = &self.hat {
+            result.extend(assets.player.hat[name].parts.iter());
+        }
+        if let Some(name) = &self.pants {
+            result.extend(assets.player.pants[name].parts.iter());
+        }
+        if let Some(name) = &self.coat {
+            result.extend(assets.player.coat[name].parts.iter());
+        }
+        Box::new(result.into_iter())
+    }
+    pub fn random(assets: &assets::PlayerAssets) -> Self {
+        let mut rng = global_rng();
+        let rng = &mut rng;
+        Self {
+            secret: None,
+            hat: Some(assets.hat.keys().choose(rng).unwrap().to_owned()),
+            coat: Some(assets.coat.keys().choose(rng).unwrap().to_owned()),
+            pants: Some(assets.pants.keys().choose(rng).unwrap().to_owned()),
+            equipment: Some(assets.equipment.keys().choose(rng).unwrap().to_owned()),
+            face: Some(assets.face.keys().choose(rng).unwrap().to_owned()),
+        }
+    }
+}
+
+struct PartState {
+    phase: f32,
+    frequency: f32,
+}
+
+struct State {
+    position: Vec<PartState>,
+    rotation: Vec<PartState>,
+    scale: Vec<PartState>,
+}
+
+pub struct Renderer {
+    geng: Geng,
+    assets: Rc<Assets>,
+    config: Config,
+    quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
+    time: f32,
+    state: RefCell<State>,
+}
+
+pub struct DrawInstance {
+    pub position: Vec2<f32>,
+    pub rotation: f32,
+    pub velocity: Vec2<f32>,
+    pub crashed: bool,
+    pub crash_timer: f32,
+    pub ski_velocity: Vec2<f32>,
+    pub ski_rotation: f32,
+    pub is_riding: bool,
+    pub crash_position: Vec2<f32>,
+}
+
+impl Renderer {
+    pub fn new(geng: &Geng, config: &Config, assets: &Rc<Assets>) -> Self {
+        Self {
+            geng: geng.clone(),
+            assets: assets.clone(),
+            config: config.clone(),
+            quad_geometry: ugli::VertexBuffer::new_static(
+                geng.ugli(),
+                vec![
+                    draw_2d::Vertex {
+                        a_pos: vec2(-1.0, -1.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(1.0, -1.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(1.0, 1.0),
+                    },
+                    draw_2d::Vertex {
+                        a_pos: vec2(-1.0, 1.0),
+                    },
+                ],
+            ),
+            time: 0.0,
+            state: RefCell::new(State {
+                position: config
+                    .parts(assets)
+                    .map(|_| PartState {
+                        phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
+                        frequency: 0.0,
+                    })
+                    .collect(),
+                rotation: config
+                    .parts(assets)
+                    .map(|_| PartState {
+                        phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
+                        frequency: 0.0,
+                    })
+                    .collect(),
+                scale: config
+                    .parts(assets)
+                    .map(|_| PartState {
+                        phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
+                        frequency: 0.0,
+                    })
+                    .collect(),
+            }),
+        }
+    }
+    pub fn update(&mut self, delta_time: f32) {
+        self.time += delta_time;
+        let mut state = self.state.borrow_mut();
+        for part in &mut state.position {
+            part.phase += delta_time * part.frequency * 2.0 * f32::PI;
+        }
+        for part in &mut state.rotation {
+            part.phase += delta_time * part.frequency * 2.0 * f32::PI;
+        }
+        for part in &mut state.scale {
+            part.phase += delta_time * part.frequency * 2.0 * f32::PI;
+        }
+    }
+    pub fn draw(
+        &self,
+        framebuffer: &mut ugli::Framebuffer,
+        camera: &impl geng::AbstractCamera2d,
+        player: &DrawInstance,
+    ) {
+        let mut draw_texture =
+            |texture: &ugli::Texture, transform: Mat3<f32>, color: Color<f32>| {
+                let framebuffer_size = framebuffer.size();
+                ugli::draw(
+                    framebuffer,
+                    &self.assets.texture_program,
+                    ugli::DrawMode::TriangleFan,
+                    &self.quad_geometry,
+                    (
+                        ugli::uniforms! {
+                            u_texture: texture,
+                            u_model_matrix: transform,
+                            u_color: color,
+                        },
+                        geng::camera2d_uniforms(camera, framebuffer_size.map(|x| x as f32)),
+                    ),
+                    &ugli::DrawParameters { ..default() },
+                );
+            };
+
+        let equipment: Option<&ugli::Texture> = self.config.equipment.as_ref().map(|name| {
+            self.assets
+                .player
+                .equipment
+                .get(name)
+                .unwrap_or_else(|| &self.assets.textures[name])
+        });
+        if let Some(equipment) = equipment {
+            if !player.crashed && player.is_riding {
+                draw_texture(
+                    equipment,
+                    Mat3::translate(player.position) * Mat3::rotate(player.rotation),
+                    Color::WHITE,
+                );
+            } else if !player.crashed {
+                draw_texture(
+                    equipment,
+                    Mat3::translate(player.position + vec2(0.0, 1.0)),
+                    Color::WHITE,
+                );
+            }
+            if player.crashed {
+                let t = player.crash_timer.min(1.0);
+                draw_texture(
+                    equipment,
+                    Mat3::translate(
+                        player.crash_position
+                            + player.ski_velocity * t
+                            + vec2(0.0, (1.0 - (t * 2.0 - 1.0).sqr()) * 5.0),
+                    ) * Mat3::rotate(player.ski_rotation + t * 5.0),
+                    Color::WHITE,
+                );
+            }
+        }
+
+        let final_matrix = Mat3::translate(
+            player.position
+                + if player.is_riding {
+                    vec2(0.0, 0.0)
+                } else {
+                    vec2(
+                        0.0,
+                        player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
+                    )
+                },
+        ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0))
+            * Mat3::scale_uniform(1.0 / 64.0);
+        let turn = if player.is_riding {
+            player.rotation / Player::ROTATION_LIMIT
+        } else {
+            player.velocity.x / Player::MAX_WALK_SPEED
+        };
+        let speed = if player.is_riding {
+            (player.velocity.len() / Player::MAX_SPEED).min(1.0)
+        } else {
+            0.0
+        };
+        let mut part_matrices: HashMap<&str, Mat3<f32>> = HashMap::new();
+        let mut state = self.state.borrow_mut();
+        for (i, part) in self.config.parts(&self.assets).enumerate() {
+            let texture = &self.assets.textures[&part.texture];
+            let parent_matrix = match &part.parent {
+                Some(name) => part_matrices[name.as_str()],
+                None => Mat3::identity(),
+            };
+            let position_wiggle = part.position.interpolate(turn, speed);
+            state.position[i].frequency = position_wiggle.frequency.unwrap_or(0.0);
+            let mut matrix =
+                parent_matrix * Mat3::translate(position_wiggle.get(state.position[i].phase));
+            if let Some(rotation) = &part.rotation {
+                let rotation_wiggle = rotation.interpolate(turn, speed);
+                state.rotation[i].frequency = rotation_wiggle.frequency.unwrap_or(0.0);
+                matrix *=
+                    Mat3::rotate(rotation_wiggle.get(state.rotation[i].phase) * f32::PI / 180.0);
+            }
+            if let Some(scale) = &part.scale {
+                let scale_wiggle = scale.interpolate(turn, speed);
+                state.scale[i].frequency = scale_wiggle.frequency.unwrap_or(0.0);
+                matrix *= Mat3::scale(scale_wiggle.get(state.scale[i].phase));
+            }
+            matrix *= Mat3::translate(-part.origin);
+            if let Some(name) = &part.name {
+                part_matrices.insert(name.as_str(), matrix);
+            }
+            let matrix = matrix
+                * Mat3::scale(texture.size().map(|x| x as f32) / 2.0)
+                * Mat3::translate(vec2(1.0, 1.0));
+            draw_texture(texture, final_matrix * matrix, Color::WHITE);
+        }
+    }
 }
