@@ -1,0 +1,21 @@
+{
+    "parts": [
+        {
+            "name": "face",
+            "parent": "body",
+            "texture": "player/face/sunglasses.png",
+            "origin": [
+                64,
+                64
+            ],
+            "position": {
+                "still": {
+                    "base": [
+                        64,
+                        64
+                    ]
+                }
+            }
+        }
+    ]
+}

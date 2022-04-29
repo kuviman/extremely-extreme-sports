@@ -1,0 +1,21 @@
+{
+    "parts": [
+        {
+            "name": "coat",
+            "parent": "body",
+            "texture": "player/coat/pink_bikini.png",
+            "origin": [
+                64,
+                64
+            ],
+            "position": {
+                "still": {
+                    "base": [
+                        64,
+                        64
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,21 @@
+{
+    "parts": [
+        {
+            "name": "hat",
+            "parent": "body",
+            "texture": "player/hat/yellow_crown.png",
+            "origin": [
+                64,
+                64
+            ],
+            "position": {
+                "still": {
+                    "base": [
+                        64,
+                        64
+                    ]
+                }
+            }
+        }
+    ]
+}
