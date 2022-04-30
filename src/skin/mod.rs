@@ -81,6 +81,8 @@ impl<T: WiggleThing> Inter<T> {
 pub struct Part {
     pub name: Option<String>,
     pub parent: Option<String>,
+    #[serde(default)]
+    pub z: i32,
     pub texture: String,
     pub origin: Vec2<f32>,
     pub position: Inter<Vec2<f32>>,
@@ -337,6 +339,12 @@ impl Renderer {
         };
         let mut part_matrices: HashMap<&str, Mat3<f32>> = HashMap::new();
         let mut state = self.state.borrow_mut();
+        struct Q<'a> {
+            texture: &'a ugli::Texture,
+            matrix: Mat3<f32>,
+            z: i32,
+        }
+        let mut q = Vec::new();
         for (i, part) in self.config.parts(&self.assets).enumerate() {
             let texture = &self.assets.textures[&part.texture];
             let parent_matrix = match &part.parent {
@@ -365,7 +373,15 @@ impl Renderer {
             let matrix = matrix
                 * Mat3::scale(texture.size().map(|x| x as f32) / 2.0)
                 * Mat3::translate(vec2(1.0, 1.0));
-            draw_texture(texture, final_matrix * matrix, Color::WHITE);
+            q.push(Q {
+                texture,
+                matrix: final_matrix * matrix,
+                z: part.z,
+            });
+        }
+        q.sort_by_key(|q| q.z);
+        for q in q {
+            draw_texture(q.texture, q.matrix, Color::WHITE);
         }
     }
 }
