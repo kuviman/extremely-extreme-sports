@@ -43,7 +43,7 @@ jobs:
         env:
           BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
           CHANNEL: html5
-          ITCH_GAME: ld50
+          ITCH_GAME: extremely-extreme-sports
           ITCH_USER: kuviman
           PACKAGE: web
       - name: Copy server files
@@ -53,7 +53,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           source: linux
-          target: ld50
+          target: extremely-extreme-sports
       - name: Deploy server
         uses: appleboy/ssh-action@master
         with:

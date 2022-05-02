@@ -224,6 +224,6 @@ One thing that has already been done after the jam is mobile support. It is pret
 
 ![Mobile support](mobile.png)
 
-If you liked this little game I made, feel free to join [our Discord community](https://discord.gg/DZaEMPpANY), or follow the updates on [GitHub](https://github.com/kuviman/ld50).
+If you liked this little game I made, feel free to join [our Discord community](https://discord.gg/DZaEMPpANY), or follow the updates on [GitHub](https://github.com/kuviman/extremely-extreme-sports).
 
 Thank you all for reading!
