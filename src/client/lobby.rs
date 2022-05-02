@@ -200,6 +200,12 @@ impl Lobby {
                 AABB::point(vec2(0.0, 0.2))
                     .extend_positive(vec2("leaderboard".len() as f32, 1.0) * size),
             ];
+            if self.assets.player.secret.contains_key(&self.name) {
+                result.push(
+                    AABB::point(vec2(0.0, 1.3))
+                        .extend_positive(vec2("secret".len() as f32, 1.0) * size * 1.0),
+                );
+            }
             result
         }
     }
@@ -393,6 +399,26 @@ impl Lobby {
                 4 => {
                     //leader
                     self.leaderboard = true;
+                }
+                5 => {
+                    // secret
+                    if let Some(config) = self.assets.player.secret.get(&self.name) {
+                        self.config = skin::Config {
+                            secret: if config.parts.is_some() {
+                                Some(self.name.clone())
+                            } else {
+                                None
+                            },
+                            hat: config.hat.clone(),
+                            coat: config.coat.clone(),
+                            pants: config.pants.clone(),
+                            equipment: config.equipment.clone(),
+                            face: config.face.clone(),
+                        };
+                    }
+                    self.skin_renderer =
+                        skin::Renderer::new(&self.geng, &self.config, &self.assets);
+                    autosave::save("player.json", &self.config);
                 }
                 _ => unreachable!(),
             }
@@ -647,6 +673,7 @@ impl geng::State for Lobby {
                     "spectate",
                     "join discord",
                     "leaderboard",
+                    "secret",
                 ]) {
                     let mut pos = button.bottom_left();
                     if button.contains(self.mouse)
