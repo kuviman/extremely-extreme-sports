@@ -5,13 +5,15 @@ mod track;
 impl Model {
     pub fn new() -> Self {
         discord::send_activity("Server started :green_circle:");
+        let config: Config = Self::read_config();
         Self {
             tick: 0,
             next_id: 0,
             avalanche_position: None,
-            avalanche_speed: Self::AVALANCHE_MIN_SPEED,
+            avalanche_speed: 0.0,
             players: default(),
-            track: Track::new_from_env(),
+            track: Track::new_from_env(&config.track),
+            config,
             winner: None,
             highscores: {
                 let path = std::path::Path::new("highscores.json");
@@ -22,6 +24,15 @@ impl Model {
                 }
             },
             scores: vec![],
+        }
+    }
+    pub fn read_config() -> Config {
+        match std::env::var("CONFIG") {
+            Ok(path) => serde_json::from_reader(std::fs::File::open(path).unwrap()).unwrap(),
+            Err(_) => serde_json::from_reader(
+                std::fs::File::open(static_path().join("config.json")).unwrap(),
+            )
+            .unwrap(),
         }
     }
 }
@@ -72,7 +83,7 @@ impl simple_net::Model for Model {
                         player.position.y = 0.0;
                     }
                     self.scores.clear();
-                    self.avalanche_position = Some(Self::AVALANCHE_START);
+                    self.avalanche_position = Some(self.config.avalanche.start);
                 }
             }
         }
@@ -83,16 +94,16 @@ impl simple_net::Model for Model {
         self.tick += 1;
         if let Some(position) = &mut self.avalanche_position {
             self.avalanche_speed = (self.avalanche_speed
-                + delta_time * Self::AVALANCHE_ACCELERATION)
-                .min(Self::AVALANCHE_MAX_SPEED);
+                + delta_time * self.config.avalanche.acceleration)
+                .min(self.config.avalanche.max_speed);
             *position -= self.avalanche_speed * delta_time;
-            if *position < Self::AVALANCHE_START - 5.0 {
+            if *position < self.config.avalanche.start - 5.0 {
                 if self.players.iter().all(|player| {
                     !player.is_riding || player.position.y > *position + self.avalanche_speed * 2.0
                 }) {
                     self.avalanche_position = None;
-                    self.avalanche_speed = Self::AVALANCHE_MIN_SPEED;
-                    self.track = Track::new_from_env();
+                    self.avalanche_speed = self.config.avalanche.min_speed;
+                    self.track = Track::new_from_env(&self.config.track);
                     if !self.scores.is_empty() {
                         self.scores.sort_by_key(|(_name, score)| -score);
                         let mut text = "Race results:".to_owned();

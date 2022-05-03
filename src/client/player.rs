@@ -36,7 +36,7 @@ impl Player {
 
     pub fn respawn(&mut self) {
         *self = Player {
-            position: vec2(global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH), 0.0),
+            position: vec2(global_rng().gen_range(-10.0..=10.0), 0.0),
             rotation: 0.0,
             velocity: Vec2::ZERO,
             crashed: false,

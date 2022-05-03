@@ -1,37 +1,30 @@
 use super::*;
 
 impl Track {
-    pub fn new_from_env() -> Self {
+    pub fn new_from_env(config: &TrackConfig) -> Self {
         let seed = match std::env::var("SEED") {
             Ok(seed) => seed.parse().unwrap(),
             Err(_) => global_rng().gen(),
         };
-        Self::new(seed)
+        Self::new(seed, config)
     }
-    pub fn new(seed: u64) -> Self {
+    pub fn new(seed: u64, config: &TrackConfig) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
-        const TRACK_LEN: f32 = 1500.0;
-        const TRACK_WIDTH: f32 = 30.0;
-        const SAFE_MIDDLE: f32 = 2.5;
-        const OBSTACLES_DENSITY: f32 = 0.2;
-        const DISTANCE_BETWEEN_OBSTACLES: f32 = 0.5;
-        const SPAWN_AREA: f32 = 10.0;
-        const SPAWN_WIDTH: f32 = 10.0;
 
         let shape = {
             let mut shape: Vec<ShapePoint> = Vec::new();
-            let mut y = SPAWN_AREA;
+            let mut y = config.spawn_area;
             let mut left = Vec::new();
             let mut right = Vec::new();
             let mut ys = Vec::new();
-            left.push(-SPAWN_WIDTH);
-            right.push(SPAWN_WIDTH);
+            left.push(-config.spawn_width);
+            right.push(config.spawn_width);
             ys.push(0.0);
             let mut mid = 0.0;
-            while y < TRACK_LEN {
+            while y < config.length {
                 ys.push(y);
-                left.push(mid - TRACK_WIDTH);
-                right.push(mid + TRACK_WIDTH);
+                left.push(mid - config.width);
+                right.push(mid + config.width);
                 const DELTA: f32 = 10.0;
                 y += DELTA;
                 let var = rng.gen_range(0.0f32..=1.0).powf(0.5);
@@ -74,7 +67,8 @@ impl Track {
                         left_len += (vec2(y, left) - vec2(last.y, last.left)).len();
                         right_len += (vec2(y, right) - vec2(last.y, last.right)).len();
                     }
-                    let safe = SAFE_MIDDLE + (SPAWN_AREA + y).max(0.0) / SPAWN_AREA * SAFE_MIDDLE;
+                    let safe = config.safe_middle
+                        + (config.spawn_area + y).max(0.0) / config.spawn_area * config.safe_middle;
                     shape.push(ShapePoint {
                         y,
                         left,
@@ -104,13 +98,13 @@ impl Track {
             .enumerate()
             .collect();
         let mut obstacles: Vec<Obstacle> = Vec::new();
-        'obstacles: for _ in 0..(TRACK_LEN * TRACK_WIDTH * OBSTACLES_DENSITY) as usize {
+        'obstacles: for _ in 0..(config.length * config.width * config.obstacle_density) as usize {
             let index = obstacle_options
                 .choose_weighted(&mut rng, |(_, obstacle)| obstacle.spawn_weight)
                 .unwrap()
                 .0;
             let radius = obstacle_options[index].1.hitbox_radius / 20.0;
-            let y = rng.gen_range(-TRACK_LEN..0.0);
+            let y = rng.gen_range(-config.length..0.0);
             let shape_point = Self::at_shape(&shape, y);
             let x = rng.gen_range(shape_point.left + radius..shape_point.right - radius);
             if x + radius > shape_point.safe_left && x - radius < shape_point.safe_right {
@@ -119,7 +113,7 @@ impl Track {
             let position = vec2(x, y);
             for obstacle in &obstacles {
                 if (obstacle.position - position).len()
-                    < radius + obstacle.radius + DISTANCE_BETWEEN_OBSTACLES
+                    < radius + obstacle.radius + config.distance_between_obstacles
                 {
                     continue 'obstacles;
                 }

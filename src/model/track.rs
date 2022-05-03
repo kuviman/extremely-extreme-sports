@@ -1,5 +1,16 @@
 use super::*;
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct TrackConfig {
+    pub length: f32,
+    pub width: f32,
+    pub safe_middle: f32,
+    pub obstacle_density: f32,
+    pub distance_between_obstacles: f32,
+    pub spawn_area: f32,
+    pub spawn_width: f32,
+}
+
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
 pub struct Obstacle {
     pub index: usize,

@@ -67,7 +67,6 @@ impl Game {
                 fov: 20.0,
             },
             spawn_particles: Vec::new(),
-            model,
             player_id,
             last_model_tick: u64::MAX,
             player_skin_renderers: default(),
@@ -85,7 +84,13 @@ impl Game {
                         ski_rotation: 0.0,
                         crash_timer: 0.0,
                         ride_volume: 0.0,
-                        position: vec2(global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH), 0.0),
+                        position: vec2(
+                            global_rng().gen_range(
+                                model.get().track.at(0.0).safe_left
+                                    ..=model.get().track.at(0.0).safe_right,
+                            ),
+                            0.0,
+                        ),
                         radius: 0.3,
                         rotation: 0.0,
                         input: 0.0,
@@ -96,6 +101,7 @@ impl Game {
                 }
                 result
             },
+            model,
             ride_sound_effect: {
                 let mut effect = assets.ride_sound.effect();
                 effect.set_volume(0.0);
@@ -620,8 +626,7 @@ impl geng::State for Game {
                         for _ in 0..10 {
                             self.particles.push(Particle {
                                 i_pos: vec2(
-                                    self.camera.center.x
-                                        + global_rng().gen_range(-TRACK_WIDTH..=TRACK_WIDTH),
+                                    self.camera.center.x + global_rng().gen_range(-20.0..=20.0),
                                     pos + global_rng().gen_range(-3.0..=0.0),
                                 ),
                                 i_vel: vec2(
@@ -840,7 +845,7 @@ impl geng::State for Game {
                 0,
             ),
         );
-        if true {
+        {
             const OFF: f32 = 2.0;
             self.geng.draw_2d(
                 framebuffer,
@@ -907,35 +912,6 @@ impl geng::State for Game {
                             ]
                         })
                         .collect(),
-                    &self.assets.border,
-                ),
-            );
-        } else {
-            let p = |x: f32, y: f32| draw_2d::TexturedVertex {
-                a_pos: vec2(TRACK_WIDTH + x * 2.0, y),
-                a_color: Color::WHITE,
-                a_vt: vec2(x * 0.9, y / 2.0),
-            };
-            let y = self.camera.center.y - self.camera.fov;
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::TexturedPolygon::new(
-                    vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, y), p(0.0, y)],
-                    &self.assets.border,
-                ),
-            );
-            let p = |x: f32, y: f32| draw_2d::TexturedVertex {
-                a_pos: vec2(-TRACK_WIDTH - x * 2.0, y),
-                a_color: Color::WHITE,
-                a_vt: vec2(x * 0.9, y / 2.0),
-            };
-            let y = self.camera.center.y - self.camera.fov;
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::TexturedPolygon::new(
-                    vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, y), p(0.0, y)],
                     &self.assets.border,
                 ),
             );
@@ -1066,8 +1042,8 @@ impl geng::State for Game {
                 &self.camera,
                 &draw_2d::Quad::new(
                     AABB::point(vec2(self.camera.center.x, position))
-                        .extend_left(TRACK_WIDTH * 5.0)
-                        .extend_right(TRACK_WIDTH * 5.0)
+                        .extend_left(50.0)
+                        .extend_right(50.0)
                         .extend_up(100.0),
                     c1,
                 ),

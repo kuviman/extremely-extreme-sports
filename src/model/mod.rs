@@ -6,10 +6,26 @@ pub use track::*;
 
 pub type Id = i64;
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AvalancheConfig {
+    pub min_speed: f32,
+    pub max_speed: f32,
+    pub acceleration: f32,
+    pub start: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct Config {
+    pub avalanche: AvalancheConfig,
+    pub track: TrackConfig,
+}
+
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
 pub struct Model {
     pub tick: u64,
     pub next_id: Id,
+    #[diff = "eq"]
+    pub config: Config,
     pub avalanche_position: Option<f32>,
     pub avalanche_speed: f32,
     pub players: Collection<Player>,
@@ -23,22 +39,12 @@ pub struct Model {
     pub scores: Vec<(String, i32)>,
 }
 
-impl Model {
-    pub const AVALANCHE_MIN_SPEED: f32 = 7.0;
-    pub const AVALANCHE_MAX_SPEED: f32 = 11.0;
-    pub const AVALANCHE_ACCELERATION: f32 =
-        (Self::AVALANCHE_MAX_SPEED - Self::AVALANCHE_MIN_SPEED) / 60.0;
-    pub const AVALANCHE_START: f32 = 30.0;
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Message {
     UpdatePlayer(Player),
     Score(i32),
     StartTheRace,
 }
-
-pub const TRACK_WIDTH: f32 = 10.0;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Event {}
