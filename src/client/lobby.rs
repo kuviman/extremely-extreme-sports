@@ -1,5 +1,31 @@
 use super::*;
 
+pub enum UiMessage {
+    Input(char),
+    Delete,
+    Back,
+    RandomSkin,
+    ChangeHat,
+    ChangeFace,
+    ChangeCoat,
+    ChangePants,
+    ChangeEquipment,
+    SecretSkin,
+    Leaderboard,
+    Play,
+    Customize,
+    Spectate,
+    JoinDiscord,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum State {
+    Main,
+    Leaderboard,
+    Customizer,
+    Keyboard,
+}
+
 pub struct Lobby {
     geng: Geng,
     framebuffer_size: Vec2<usize>,
@@ -11,33 +37,8 @@ pub struct Lobby {
     camera: geng::Camera2d,
     mouse: Vec2<f32>,
     config: skin::Config,
-    keyboard: bool,
-    customizer: bool,
-    leaderboard: bool,
+    state: State,
     skin_renderer: skin::Renderer,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct PlayerConfig {
-    pub hat: usize,
-    pub coat: usize,
-    pub pants: usize,
-    pub equipment: usize,
-    pub face: usize,
-    pub custom: Option<String>,
-}
-
-impl PlayerConfig {
-    pub fn random(assets: &PlayerAssets) -> Self {
-        Self {
-            hat: global_rng().gen_range(0..4),       // assets.hat.len()),
-            coat: global_rng().gen_range(0..4),      // assets.coat.len()),
-            pants: global_rng().gen_range(0..4),     // assets.pants.len()),
-            face: global_rng().gen_range(0..4),      // assets.face.len()),
-            equipment: global_rng().gen_range(0..2), // assets.equipment.len()),
-            custom: None,
-        }
-    }
 }
 
 impl Lobby {
@@ -98,7 +99,6 @@ impl Lobby {
                 rotation: 0.0,
                 fov: 2.0,
             },
-            keyboard: false,
             assets: assets.clone(),
             player_id,
             model: Some(model),
@@ -110,320 +110,257 @@ impl Lobby {
             mouse: Vec2::ZERO,
             skin_renderer: skin::Renderer::new(geng, &config, assets),
             config,
-            customizer: false,
-            leaderboard: false,
+            state: State::Main,
         }
     }
-    fn buttons(&self) -> Vec<AABB<f32>> {
-        if self.keyboard {
-            let mut result = vec![];
-            let mut initial_x = 0.0;
-            let mut initial_y = 0.5;
-            let mut size = 0.1;
-            if self.framebuffer_size.x < self.framebuffer_size.y {
-                initial_x = -1.25;
-                initial_y = -0.5;
-                size = 0.25;
+    fn handle_ui(&mut self, message: UiMessage) {
+        fn change_skin_item<T>(item: &mut Option<String>, options: &HashMap<String, T>) {
+            let options: Vec<&str> = options.keys().map(|s| s.as_str()).collect();
+            if let Some(name) = item {
+                let current = options.iter().position(|s| s == name).unwrap_or(0);
+                *name = options[(current + 1) % options.len()].to_owned();
             }
-            let mut x = initial_x;
-            let mut y = initial_y;
-            for _ in "1234567890".chars() {
-                result.push(AABB::point(vec2(x, y)).extend_positive(vec2(1.0, 1.0) * size));
-                x += size;
-            }
-            x = initial_x;
-            y -= size;
-            for _ in "qwertyuiop".chars() {
-                result.push(AABB::point(vec2(x, y)).extend_positive(vec2(1.0, 1.0) * size));
-                x += size;
-            }
-            x = initial_x;
-            y -= size;
-            for _ in "asdfghjkl".chars() {
-                result.push(AABB::point(vec2(x, y)).extend_positive(vec2(1.0, 1.0) * size));
-                x += size;
-            }
-            x = initial_x;
-            y -= size;
-            for _ in "zxcvbnm".chars() {
-                result.push(AABB::point(vec2(x, y)).extend_positive(vec2(1.0, 1.0) * size));
-                x += size;
-            }
-            x = initial_x;
-            y -= size;
-            result.push(
-                AABB::point(vec2(initial_x + 5.0 * size, initial_y + 2.0 * size))
-                    .extend_positive(vec2("delete".len() as f32, 1.0) * size),
-            );
-            result.push(
-                AABB::point(vec2(initial_x + 6.0 * size, initial_y + 4.0 * size))
-                    .extend_positive(vec2("back".len() as f32, 1.0) * size),
-            );
-            result
-        } else if self.customizer {
-            let size = 0.1;
-            let mut result = vec![
-                AABB::point(vec2(0.0, 0.8)).extend_positive(vec2("hat".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.0, 0.6)).extend_positive(vec2("face".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.0, 0.4)).extend_positive(vec2("coat".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.0, 0.2)).extend_positive(vec2("pants".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.0, 0.0))
-                    .extend_positive(vec2("equipment".len() as f32, 1.0) * size),
-                AABB::point(vec2(-0.5, -0.2))
-                    .extend_positive(vec2("random".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.5, -0.4))
-                    .extend_positive(vec2("back".len() as f32, 1.0) * size * 2.0),
-            ];
-            if self.assets.player.secret.contains_key(&self.name) {
-                result.push(
-                    AABB::point(vec2(0.0, 1.3))
-                        .extend_positive(vec2("secret".len() as f32, 1.0) * size * 1.0),
-                );
-            }
-            result
-        } else if self.leaderboard {
-            let size = 0.1;
-            let mut result = vec![AABB::point(vec2(0.0, -0.3))
-                .extend_symmetric(vec2("back".len() as f32, 1.0) * size)];
-            result
-        } else {
-            let size = 0.1;
-            let mut result = vec![
-                AABB::point(vec2(0.0, 0.8))
-                    .extend_positive(vec2("customize".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.0, 0.4))
-                    .extend_positive(vec2("play".len() as f32, 1.0) * size * 2.0),
-                AABB::point(vec2(0.0, 0.0))
-                    .extend_positive(vec2("spectate".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.0, -0.3))
-                    .extend_positive(vec2("join discord".len() as f32, 1.0) * size),
-                AABB::point(vec2(0.0, 0.2))
-                    .extend_positive(vec2("leaderboard".len() as f32, 1.0) * size),
-            ];
-            if self.assets.player.secret.contains_key(&self.name) {
-                result.push(
-                    AABB::point(vec2(0.0, 1.3))
-                        .extend_positive(vec2("secret".len() as f32, 1.0) * size * 1.0),
-                );
-            }
-            result
         }
-    }
-
-    fn press_button(&mut self, index: usize) {
-        if self.keyboard {
-            if let Some(c) = "1234567890qwertyuiopasdfghjklzxcvbnm"
-                .chars()
-                .skip(index)
-                .next()
-            {
+        match message {
+            UiMessage::Input(c) => {
                 if self.name.len() < 15 {
                     self.name.push(c);
                 }
-            } else {
-                let index = index - "1234567890qwertyuiopasdfghjklzxcvbnm".len();
-                match index {
-                    0 => {
-                        self.name.pop();
-                    }
-                    1 => {
-                        self.keyboard = false;
-                    }
-                    _ => unreachable!(),
-                }
             }
-        } else if self.customizer {
-            // "hat", "face", "coat", "pants", "equipment"
-            match index {
-                0 => {
-                    let options: Vec<&str> =
-                        self.assets.player.hat.keys().map(|s| s.as_str()).collect();
-                    if let Some(hat) = &mut self.config.hat {
-                        let current = options.iter().position(|s| s == hat).unwrap_or(0);
-                        *hat = options[(current + 1) % options.len()].to_owned();
-                    }
-                }
-                1 => {
-                    let options: Vec<&str> =
-                        self.assets.player.face.keys().map(|s| s.as_str()).collect();
-                    if let Some(face) = &mut self.config.face {
-                        let current = options.iter().position(|s| s == face).unwrap_or(0);
-                        *face = options[(current + 1) % options.len()].to_owned();
-                    }
-                }
-                2 => {
-                    let options: Vec<&str> =
-                        self.assets.player.coat.keys().map(|s| s.as_str()).collect();
-                    if let Some(coat) = &mut self.config.coat {
-                        let current = options.iter().position(|s| s == coat).unwrap_or(0);
-                        *coat = options[(current + 1) % options.len()].to_owned();
-                    }
-                }
-                3 => {
-                    let options: Vec<&str> = self
-                        .assets
-                        .player
-                        .pants
-                        .keys()
-                        .map(|s| s.as_str())
-                        .collect();
-                    if let Some(pants) = &mut self.config.pants {
-                        let current = options.iter().position(|s| s == pants).unwrap_or(0);
-                        *pants = options[(current + 1) % options.len()].to_owned();
-                    }
-                }
-                4 => {
-                    let options: Vec<&str> = self
-                        .assets
-                        .player
-                        .equipment
-                        .keys()
-                        .map(|s| s.as_str())
-                        .collect();
-                    if let Some(equipment) = &mut self.config.equipment {
-                        let current = options.iter().position(|s| s == equipment).unwrap_or(0);
-                        *equipment = options[(current + 1) % options.len()].to_owned();
-                    }
-                }
-                5 => {
-                    self.config = skin::Config::random(&self.assets.player);
-                }
-                6 => {
-                    self.customizer = false;
-                }
-                7 => {
-                    if let Some(config) = self.assets.player.secret.get(&self.name) {
-                        self.config = skin::Config {
-                            secret: if config.parts.is_some() {
-                                Some(self.name.clone())
-                            } else {
-                                None
-                            },
-                            hat: config.hat.clone(),
-                            coat: config.coat.clone(),
-                            pants: config.pants.clone(),
-                            equipment: config.equipment.clone(),
-                            face: config.face.clone(),
-                        };
-                    }
-                    // if self.assets.player.custom.contains_key(&self.name) {
-                    //     self.old_config.custom = Some(self.name.clone());
-                    // }
-                    // if self.name == "6fu" {
-                    //     self.old_config.equipment = 3;
-                    // }
-                    // if self.name == "kidgiraffe" {
-                    //     self.old_config.equipment = 2;
-                    // }
-                    // if self.name == "potkirland" {
-                    //     self.old_config.pants = 4;
-                    //     self.old_config.coat = 4;
-                    //     self.old_config.face = 0;
-                    //     self.old_config.hat = 3;
-                    // }
-                    // if self.name == "wendel" {
-                    //     self.old_config.equipment = 5;
-                    // }
-                    // if self.name == "jared" || self.name == "fizruk" {
-                    //     self.old_config.equipment = 6;
-                    // }
-                    // if self.name == "jitspoe" {
-                    //     self.old_config.equipment = 7;
-                    //     self.old_config.pants = 3;
-                    //     self.old_config.coat = 1;
-                    //     self.old_config.face = 3;
-                    //     self.old_config.hat = 0;
-                    // }
-                }
-                _ => unreachable!(),
+            UiMessage::Delete => {
+                self.name.pop();
             }
-            self.skin_renderer = skin::Renderer::new(&self.geng, &self.config, &self.assets);
-            autosave::save("player.json", &self.config);
-        } else if self.leaderboard {
-            match index {
-                0 => {
-                    self.leaderboard = false;
-                }
-                _ => unreachable!(),
+            UiMessage::Back => self.state = State::Main,
+            UiMessage::RandomSkin => self.config = skin::Config::random(&self.assets.player),
+            UiMessage::ChangeHat => change_skin_item(&mut self.config.hat, &self.assets.player.hat),
+            UiMessage::ChangeFace => {
+                change_skin_item(&mut self.config.face, &self.assets.player.face);
             }
-        } else {
-            match index {
-                0 => {
-                    // customize
-                    self.customizer = !self.customizer;
-                }
-                1 => {
-                    // play
-                    self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
-                        &self.geng,
-                        &self.assets,
-                        self.player_id,
-                        Some(if self.name.is_empty() {
-                            "unnamed".to_owned()
+            UiMessage::ChangeCoat => {
+                change_skin_item(&mut self.config.coat, &self.assets.player.coat);
+            }
+            UiMessage::ChangePants => {
+                change_skin_item(&mut self.config.pants, &self.assets.player.pants);
+            }
+            UiMessage::ChangeEquipment => {
+                change_skin_item(&mut self.config.equipment, &self.assets.player.equipment);
+            }
+            UiMessage::SecretSkin => {
+                if let Some(config) = self.assets.player.secret.get(&self.name) {
+                    self.config = skin::Config {
+                        secret: if config.parts.is_some() {
+                            Some(self.name.clone())
                         } else {
-                            self.name.clone()
-                        }),
-                        Some(self.config.clone()),
-                        self.model.take().unwrap(),
-                        false,
-                    ))));
+                            None
+                        },
+                        hat: config.hat.clone(),
+                        coat: config.coat.clone(),
+                        pants: config.pants.clone(),
+                        equipment: config.equipment.clone(),
+                        face: config.face.clone(),
+                    };
                 }
-                2 => {
-                    //spectate
-                    self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
-                        &self.geng,
-                        &self.assets,
-                        self.player_id,
-                        None,
-                        None,
-                        self.model.take().unwrap(),
-                        true,
-                    ))));
-                }
-                3 => {
-                    //discord
-                    #[cfg(target_arch = "wasm32")]
+            }
+            UiMessage::Leaderboard => self.state = State::Leaderboard,
+            UiMessage::Play => {
+                self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
+                    &self.geng,
+                    &self.assets,
+                    self.player_id,
+                    Some(if self.name.is_empty() {
+                        "unnamed".to_owned()
+                    } else {
+                        self.name.clone()
+                    }),
+                    Some(self.config.clone()),
+                    self.model.take().unwrap(),
+                    false,
+                ))));
+            }
+            UiMessage::Customize => {
+                self.state = State::Customizer;
+            }
+            UiMessage::Spectate => {
+                self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
+                    &self.geng,
+                    &self.assets,
+                    self.player_id,
+                    None,
+                    None,
+                    self.model.take().unwrap(),
+                    true,
+                ))));
+            }
+            UiMessage::JoinDiscord => {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    if let Ok(Some(w)) = web_sys::window()
+                        .unwrap()
+                        .open_with_url_and_target(DISCORD_LINK, "_blank")
                     {
-                        if let Ok(Some(w)) = web_sys::window()
-                            .unwrap()
-                            .open_with_url_and_target(DISCORD_LINK, "_blank")
-                        {
-                            w.focus();
-                        }
-                    }
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        open::that(DISCORD_LINK).unwrap();
+                        w.focus();
                     }
                 }
-                4 => {
-                    //leader
-                    self.leaderboard = true;
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    open::that(DISCORD_LINK).unwrap();
                 }
-                5 => {
-                    // secret
-                    if let Some(config) = self.assets.player.secret.get(&self.name) {
-                        self.config = skin::Config {
-                            secret: if config.parts.is_some() {
-                                Some(self.name.clone())
-                            } else {
-                                None
-                            },
-                            hat: config.hat.clone(),
-                            coat: config.coat.clone(),
-                            pants: config.pants.clone(),
-                            equipment: config.equipment.clone(),
-                            face: config.face.clone(),
-                        };
-                    }
-                    self.skin_renderer =
-                        skin::Renderer::new(&self.geng, &self.config, &self.assets);
-                    autosave::save("player.json", &self.config);
-                }
-                _ => unreachable!(),
             }
         }
+        self.skin_renderer = skin::Renderer::new(&self.geng, &self.config, &self.assets);
+        autosave::save("player.json", &self.config);
         autosave::save("player_name.txt", &self.name);
+    }
+    fn buttons(&self) -> Vec<ui::Button<UiMessage>> {
+        match self.state {
+            State::Keyboard => {
+                let mut result = vec![];
+                let mut initial_x = 0.0;
+                let mut initial_y = 0.5;
+                let mut size = 0.1;
+                if self.framebuffer_size.x < self.framebuffer_size.y {
+                    initial_x = -1.25;
+                    initial_y = -0.5;
+                    size = 0.25;
+                }
+                let mut x = initial_x;
+                let mut y = initial_y;
+                for c in "1234567890".chars() {
+                    result.push(ui::Button::new(
+                        &c.to_string(),
+                        vec2(x, y),
+                        size,
+                        0.0,
+                        UiMessage::Input(c),
+                    ));
+                    x += size;
+                }
+                x = initial_x;
+                y -= size;
+                for c in "qwertyuiop".chars() {
+                    result.push(ui::Button::new(
+                        &c.to_string(),
+                        vec2(x, y),
+                        size,
+                        0.0,
+                        UiMessage::Input(c),
+                    ));
+                    x += size;
+                }
+                x = initial_x;
+                y -= size;
+                for c in "asdfghjkl".chars() {
+                    result.push(ui::Button::new(
+                        &c.to_string(),
+                        vec2(x, y),
+                        size,
+                        0.0,
+                        UiMessage::Input(c),
+                    ));
+                    x += size;
+                }
+                x = initial_x;
+                y -= size;
+                for c in "zxcvbnm".chars() {
+                    result.push(ui::Button::new(
+                        &c.to_string(),
+                        vec2(x, y),
+                        size,
+                        0.0,
+                        UiMessage::Input(c),
+                    ));
+                    x += size;
+                }
+                x = initial_x;
+                y -= size;
+                result.push(ui::Button::new(
+                    "delete",
+                    vec2(initial_x + 5.0 * size, initial_y + 2.0 * size),
+                    size,
+                    0.5,
+                    UiMessage::Delete,
+                ));
+                result.push(ui::Button::new(
+                    "back",
+                    vec2(initial_x + 6.0 * size, initial_y + 4.0 * size),
+                    size,
+                    0.5,
+                    UiMessage::Back,
+                ));
+                result
+            }
+            State::Customizer => {
+                let size = 0.1;
+                let mut result = vec![
+                    ui::Button::new("hat", vec2(0.0, 0.8), size, 0.0, UiMessage::ChangeHat),
+                    ui::Button::new("face", vec2(0.0, 0.6), size, 0.0, UiMessage::ChangeFace),
+                    ui::Button::new("coat", vec2(0.0, 0.4), size, 0.0, UiMessage::ChangeCoat),
+                    ui::Button::new("pants", vec2(0.0, 0.2), size, 0.0, UiMessage::ChangePants),
+                    ui::Button::new(
+                        "equipment",
+                        vec2(0.0, 0.0),
+                        size,
+                        0.0,
+                        UiMessage::ChangeEquipment,
+                    ),
+                    ui::Button::new("random", vec2(-0.5, -0.2), size, 0.0, UiMessage::RandomSkin),
+                    ui::Button::new("back", vec2(0.5, -0.4), size * 2.0, 0.0, UiMessage::Back),
+                ];
+                if self.assets.player.secret.contains_key(&self.name) {
+                    result.push(ui::Button::new(
+                        "secret",
+                        vec2(0.0, 1.3),
+                        size,
+                        0.0,
+                        UiMessage::SecretSkin,
+                    ));
+                }
+                result
+            }
+            State::Leaderboard => {
+                let size = 0.1;
+                let mut result = vec![ui::Button::new(
+                    "secret",
+                    vec2(0.0, -0.3),
+                    size,
+                    0.0,
+                    UiMessage::SecretSkin,
+                )];
+                result
+            }
+            State::Main => {
+                let size = 0.1;
+                let mut result = vec![
+                    ui::Button::new("customize", vec2(0.0, 0.8), size, 0.0, UiMessage::Customize),
+                    ui::Button::new("play", vec2(0.0, 0.4), size * 2.0, 0.0, UiMessage::Play),
+                    ui::Button::new("spectate", vec2(0.0, 0.0), size, 0.0, UiMessage::Spectate),
+                    ui::Button::new(
+                        "join discord",
+                        vec2(0.0, -0.3),
+                        size,
+                        0.0,
+                        UiMessage::JoinDiscord,
+                    ),
+                    ui::Button::new(
+                        "leaderboard",
+                        vec2(0.0, 0.2),
+                        size,
+                        0.0,
+                        UiMessage::Leaderboard,
+                    ),
+                ];
+                if self.assets.player.secret.contains_key(&self.name) {
+                    result.push(ui::Button::new(
+                        "secret",
+                        vec2(0.0, 1.3),
+                        size,
+                        0.0,
+                        UiMessage::SecretSkin,
+                    ));
+                }
+                result
+            }
+        }
     }
 }
 
@@ -434,271 +371,177 @@ impl geng::State for Lobby {
             2.0f32.max(2.7 * framebuffer.size().y as f32 / framebuffer.size().x as f32);
         ugli::clear(framebuffer, Some(Color::WHITE), None);
 
-        let buttons = self.buttons();
-
-        if self.leaderboard {
-            self.assets.font.draw(
-                framebuffer,
-                &self.camera,
-                vec2(0.0, 1.2),
-                0.2,
-                "leaderboard",
-                0.5,
-                Color::GRAY,
-            );
-            if let Some(model) = &self.model {
-                let mut rows = Vec::new();
-                let model = model.get();
-                for (name, score) in &model.highscores {
-                    rows.push((name.clone(), *score));
-                }
-                rows.sort_by_key(|(name, score)| (-*score, name.clone()));
-                while rows.len() > 10 {
-                    rows.pop();
-                }
-                if !rows.iter().any(|(name, _score)| name == &self.name) {
-                    if let Some(&score) = model.highscores.get(&self.name) {
-                        rows.push((self.name.clone(), score));
+        match self.state {
+            State::Leaderboard => {
+                self.assets.font.draw(
+                    framebuffer,
+                    &self.camera,
+                    vec2(0.0, 1.2),
+                    0.2,
+                    "leaderboard",
+                    0.5,
+                    Color::GRAY,
+                );
+                if let Some(model) = &self.model {
+                    let mut rows = Vec::new();
+                    let model = model.get();
+                    for (name, score) in &model.highscores {
+                        rows.push((name.clone(), *score));
                     }
-                }
-                let mut y = 1.0;
-                let highlight = Color::rgb(0.5, 0.5, 1.0);
-                for (index, (name, score)) in rows.iter().enumerate() {
-                    if index == 10 {
+                    rows.sort_by_key(|(name, score)| (-*score, name.clone()));
+                    while rows.len() > 10 {
+                        rows.pop();
+                    }
+                    if !rows.iter().any(|(name, _score)| name == &self.name) {
+                        if let Some(&score) = model.highscores.get(&self.name) {
+                            rows.push((self.name.clone(), score));
+                        }
+                    }
+                    let mut y = 1.0;
+                    let highlight = Color::rgb(0.5, 0.5, 1.0);
+                    for (index, (name, score)) in rows.iter().enumerate() {
+                        if index == 10 {
+                            y -= 0.1;
+                        }
+                        let color = if *name == self.name {
+                            highlight
+                        } else {
+                            Color::WHITE
+                        };
+                        if index < 10 {
+                            self.assets.font.draw(
+                                framebuffer,
+                                &self.camera,
+                                vec2(-1.0, y),
+                                0.1,
+                                &(index + 1).to_string(),
+                                1.0,
+                                color,
+                            );
+                        }
                         y -= 0.1;
                     }
-                    let color = if *name == self.name {
-                        highlight
-                    } else {
-                        Color::WHITE
-                    };
-                    if index < 10 {
+                    let mut y = 1.0;
+                    for (index, (name, score)) in rows.iter().enumerate() {
+                        if index == 10 {
+                            y -= 0.1;
+                        }
+                        let color = if *name == self.name {
+                            highlight
+                        } else {
+                            Color::WHITE
+                        };
                         self.assets.font.draw(
                             framebuffer,
                             &self.camera,
-                            vec2(-1.0, y),
+                            vec2(-0.9, y),
                             0.1,
-                            &(index + 1).to_string(),
+                            name,
+                            0.0,
+                            color,
+                        );
+                        y -= 0.1;
+                    }
+                    let mut y = 1.0;
+                    for (index, (name, score)) in rows.iter().enumerate() {
+                        if index == 10 {
+                            y -= 0.1;
+                        }
+
+                        let color = if *name == self.name {
+                            highlight
+                        } else {
+                            Color::WHITE
+                        };
+                        self.assets.font.draw(
+                            framebuffer,
+                            &self.camera,
+                            vec2(1.0, y),
+                            0.1,
+                            &score.to_string(),
                             1.0,
                             color,
                         );
-                    }
-                    y -= 0.1;
-                }
-                let mut y = 1.0;
-                for (index, (name, score)) in rows.iter().enumerate() {
-                    if index == 10 {
                         y -= 0.1;
                     }
-                    let color = if *name == self.name {
-                        highlight
-                    } else {
-                        Color::WHITE
-                    };
-                    self.assets.font.draw(
-                        framebuffer,
-                        &self.camera,
-                        vec2(-0.9, y),
-                        0.1,
-                        name,
-                        0.0,
-                        color,
-                    );
-                    y -= 0.1;
-                }
-                let mut y = 1.0;
-                for (index, (name, score)) in rows.iter().enumerate() {
-                    if index == 10 {
-                        y -= 0.1;
-                    }
-
-                    let color = if *name == self.name {
-                        highlight
-                    } else {
-                        Color::WHITE
-                    };
-                    self.assets.font.draw(
-                        framebuffer,
-                        &self.camera,
-                        vec2(1.0, y),
-                        0.1,
-                        &score.to_string(),
-                        1.0,
-                        color,
-                    );
-                    y -= 0.1;
                 }
             }
-            for (button, text) in buttons.into_iter().zip(["back"]) {
-                let mut pos = button.bottom_left();
-                if button.contains(self.mouse)
-                    && self
-                        .geng
-                        .window()
-                        .is_button_pressed(geng::MouseButton::Left)
-                {
-                    pos.y -= button.height() * 0.2;
-                }
-                self.assets.font.draw(
+            _ => {
+                // Draw player
+                self.skin_renderer.draw(
                     framebuffer,
                     &self.camera,
-                    pos,
-                    button.height(),
-                    text,
-                    0.0,
-                    if button.contains(self.mouse) {
-                        Color::rgb(0.5, 0.5, 1.0)
-                    } else {
-                        Color::WHITE
+                    &skin::DrawInstance {
+                        position: vec2(-0.5, 0.0),
+                        rotation: 0.0,
+                        velocity: Vec2::ZERO,
+                        crashed: false,
+                        crash_timer: 0.0,
+                        ski_velocity: Vec2::ZERO,
+                        ski_rotation: 0.0,
+                        is_riding: false,
+                        crash_position: Vec2::ZERO,
                     },
                 );
+
+                let c = if AABB::point(vec2(0.5, 1.1))
+                    .extend_up(0.1)
+                    .extend_left(2.0)
+                    .extend_right(2.0)
+                    .contains(self.mouse)
+                {
+                    Some(Color::rgb(0.5, 0.5, 1.0))
+                } else {
+                    None
+                };
+                if self.name.is_empty() {
+                    self.assets.font.draw(
+                        framebuffer,
+                        &self.camera,
+                        vec2(0.5, 1.1),
+                        0.1,
+                        "type your name",
+                        0.5,
+                        c.unwrap_or(Color::RED),
+                    );
+                } else {
+                    self.assets.font.draw(
+                        framebuffer,
+                        &self.camera,
+                        vec2(0.5, 1.1),
+                        0.1,
+                        &self.name,
+                        0.5,
+                        c.unwrap_or(Color::WHITE),
+                    );
+                }
             }
-        } else {
-            // Draw player
-            self.skin_renderer.draw(
+        }
+
+        for button in self.buttons() {
+            let mut position = button.position;
+            let hovered = button.aabb().contains(self.mouse);
+            if hovered
+                && self
+                    .geng
+                    .window()
+                    .is_button_pressed(geng::MouseButton::Left)
+            {
+                position.y -= button.size * 0.2;
+            }
+            self.assets.font.draw(
                 framebuffer,
                 &self.camera,
-                &skin::DrawInstance {
-                    position: vec2(-0.5, 0.0),
-                    rotation: 0.0,
-                    velocity: Vec2::ZERO,
-                    crashed: false,
-                    crash_timer: 0.0,
-                    ski_velocity: Vec2::ZERO,
-                    ski_rotation: 0.0,
-                    is_riding: false,
-                    crash_position: Vec2::ZERO,
+                position,
+                button.size,
+                &button.text,
+                0.0,
+                if hovered {
+                    Color::rgb(0.5, 0.5, 1.0)
+                } else {
+                    Color::WHITE
                 },
             );
-
-            let c = if AABB::point(vec2(0.5, 1.1))
-                .extend_up(0.1)
-                .extend_left(2.0)
-                .extend_right(2.0)
-                .contains(self.mouse)
-            {
-                Some(Color::rgb(0.5, 0.5, 1.0))
-            } else {
-                None
-            };
-            if self.name.is_empty() {
-                self.assets.font.draw(
-                    framebuffer,
-                    &self.camera,
-                    vec2(0.5, 1.1),
-                    0.1,
-                    "type your name",
-                    0.5,
-                    c.unwrap_or(Color::RED),
-                );
-            } else {
-                self.assets.font.draw(
-                    framebuffer,
-                    &self.camera,
-                    vec2(0.5, 1.1),
-                    0.1,
-                    &self.name,
-                    0.5,
-                    c.unwrap_or(Color::WHITE),
-                );
-            }
-            if self.keyboard {
-                for (button, text) in buttons.into_iter().zip(
-                    "1234567890qwertyuiopasdfghjklzxcvbnm"
-                        .chars()
-                        .map(|c| c.to_string())
-                        .chain(["delete", "back"].into_iter().map(|s| s.to_owned())),
-                ) {
-                    let mut pos = button.bottom_left();
-                    if button.contains(self.mouse)
-                        && self
-                            .geng
-                            .window()
-                            .is_button_pressed(geng::MouseButton::Left)
-                    {
-                        pos.y -= button.height() * 0.2;
-                    }
-                    self.assets.font.draw(
-                        framebuffer,
-                        &self.camera,
-                        pos,
-                        button.height(),
-                        &text,
-                        0.0,
-                        if button.contains(self.mouse) {
-                            Color::rgb(0.5, 0.5, 1.0)
-                        } else {
-                            Color::WHITE
-                        },
-                    );
-                }
-            } else if self.customizer {
-                for (button, text) in buttons.into_iter().zip([
-                    "hat",
-                    "face",
-                    "coat",
-                    "pants",
-                    "equipment",
-                    "random",
-                    "back",
-                    "secret",
-                ]) {
-                    let mut pos = button.bottom_left();
-                    if button.contains(self.mouse)
-                        && self
-                            .geng
-                            .window()
-                            .is_button_pressed(geng::MouseButton::Left)
-                    {
-                        pos.y -= button.height() * 0.2;
-                    }
-                    self.assets.font.draw(
-                        framebuffer,
-                        &self.camera,
-                        pos,
-                        button.height(),
-                        text,
-                        0.0,
-                        if button.contains(self.mouse) {
-                            Color::rgb(0.5, 0.5, 1.0)
-                        } else {
-                            Color::WHITE
-                        },
-                    );
-                }
-            } else {
-                for (button, text) in buttons.into_iter().zip([
-                    "customize",
-                    "play",
-                    "spectate",
-                    "join discord",
-                    "leaderboard",
-                    "secret",
-                ]) {
-                    let mut pos = button.bottom_left();
-                    if button.contains(self.mouse)
-                        && self
-                            .geng
-                            .window()
-                            .is_button_pressed(geng::MouseButton::Left)
-                    {
-                        pos.y -= button.height() * 0.2;
-                    }
-                    self.assets.font.draw(
-                        framebuffer,
-                        &self.camera,
-                        pos,
-                        button.height(),
-                        text,
-                        0.0,
-                        if button.contains(self.mouse) {
-                            Color::rgb(0.5, 0.5, 1.0)
-                        } else {
-                            Color::WHITE
-                        },
-                    );
-                }
-            }
         }
     }
 
@@ -710,30 +553,25 @@ impl geng::State for Lobby {
 
     fn handle_event(&mut self, event: geng::Event) {
         match event {
-            geng::Event::KeyDown { key } => {
-                match key {
-                    geng::Key::Space => {}
-                    geng::Key::Backspace => {
-                        self.name.pop();
-                    }
-                    _ => {
-                        if self.name.len() < 15 {
-                            let c = format!("{:?}", key);
-                            let c = if c.len() == 1 {
-                                Some(c.to_lowercase().chars().next().unwrap())
-                            } else if let Some(c) = c.strip_prefix("Num") {
-                                Some(c.chars().next().unwrap())
-                            } else {
-                                None
-                            };
-                            if let Some(c) = c {
-                                self.name.push(c)
-                            }
-                        }
+            geng::Event::KeyDown { key } => match key {
+                geng::Key::Space => {}
+                geng::Key::Backspace => {
+                    self.handle_ui(UiMessage::Delete);
+                }
+                _ => {
+                    let c = format!("{:?}", key);
+                    let c = if c.len() == 1 {
+                        Some(c.to_lowercase().chars().next().unwrap())
+                    } else if let Some(c) = c.strip_prefix("Num") {
+                        Some(c.chars().next().unwrap())
+                    } else {
+                        None
+                    };
+                    if let Some(c) = c {
+                        self.handle_ui(UiMessage::Input(c));
                     }
                 }
-                autosave::save("player_name.txt", &self.name);
-            }
+            },
             geng::Event::MouseDown {
                 position,
                 button: geng::MouseButton::Left,
@@ -748,7 +586,10 @@ impl geng::State for Lobby {
                     .extend_right(2.0)
                     .contains(self.mouse)
                 {
-                    self.keyboard = !self.keyboard;
+                    self.state = match self.state {
+                        State::Keyboard => State::Main,
+                        _ => State::Keyboard,
+                    };
                 }
             }
             geng::Event::MouseMove { position, .. } => {
@@ -768,7 +609,10 @@ impl geng::State for Lobby {
                     .extend_right(2.0)
                     .contains(self.mouse)
                 {
-                    self.keyboard = !self.keyboard;
+                    self.state = match self.state {
+                        State::Keyboard => State::Main,
+                        _ => State::Keyboard,
+                    };
                 }
             }
             geng::Event::TouchMove { touches } => {
@@ -782,12 +626,12 @@ impl geng::State for Lobby {
                 ..
             }
             | geng::Event::TouchEnd { .. } => {
-                if let Some(index) = self
+                if let Some(button) = self
                     .buttons()
-                    .iter()
-                    .position(|button| button.contains(self.mouse))
+                    .into_iter()
+                    .find(|button| button.aabb().contains(self.mouse))
                 {
-                    self.press_button(index);
+                    self.handle_ui(button.message);
                 }
             }
             _ => {}

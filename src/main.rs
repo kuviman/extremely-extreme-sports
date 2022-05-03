@@ -8,6 +8,7 @@ mod model;
 mod server;
 mod simple_net;
 mod skin;
+mod ui;
 
 use assets::*;
 use font::*;
