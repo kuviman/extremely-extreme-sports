@@ -10,7 +10,7 @@ impl Model {
             tick: 0,
             next_id: 0,
             avalanche_position: None,
-            avalanche_speed: 0.0,
+            avalanche_speed: config.avalanche.min_speed,
             players: default(),
             track: Track::new_from_env(&config.track),
             config,
