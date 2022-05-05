@@ -318,13 +318,12 @@ impl Lobby {
                 result
             }
             State::Leaderboard => {
-                let size = 0.1;
                 let mut result = vec![ui::Button::new(
-                    "secret",
-                    vec2(0.0, -0.3),
-                    size,
-                    0.0,
-                    UiMessage::SecretSkin,
+                    "back",
+                    vec2(0.0, -0.35),
+                    0.15,
+                    0.5,
+                    UiMessage::Back,
                 )];
                 result
             }
