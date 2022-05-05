@@ -19,29 +19,30 @@ const DISCORD_LINK: &'static str = "https://discord.gg/DZaEMPpANY";
 #[derive(clap::Parser, Clone)]
 pub struct Opt {
     #[clap(long)]
-    addr: Option<String>,
+    server: Option<String>,
     #[clap(long)]
-    server: bool,
-    #[clap(long)]
-    with_server: bool,
+    connect: Option<String>,
     #[clap(long)]
     spectator: bool,
     #[clap(long)]
     auto_sound: bool,
 }
 
-impl Opt {
-    pub fn addr(&self) -> &str {
-        match &self.addr {
-            Some(addr) => addr,
-            None => option_env!("SERVER_ADDR").unwrap_or("127.0.0.1:1155"),
-        }
-    }
-}
-
 fn main() {
     // logger::init().unwrap();
-    let opt: Opt = program_args::parse();
+    let mut opt: Opt = program_args::parse();
+    if opt.connect.is_none() && opt.server.is_none() {
+        if cfg!(target_arch = "wasm32") {
+            opt.connect = Some(
+                option_env!("CONNECT")
+                    .expect("Set CONNECT compile time env var")
+                    .to_owned(),
+            );
+        } else {
+            opt.server = Some("127.0.0.1:1155".to_owned());
+            opt.connect = Some("ws://127.0.0.1:1155".to_owned());
+        }
+    }
     let model_constructor = Model::new;
     let game_constructor = {
         let opt = opt.clone();
@@ -71,13 +72,13 @@ fn main() {
             )
         }
     };
-    if opt.server {
+    if opt.server.is_some() && opt.connect.is_none() {
         #[cfg(not(target_arch = "wasm32"))]
-        simple_net::Server::new(opt.addr(), model_constructor()).run();
+        simple_net::Server::new(opt.server.as_deref().unwrap(), model_constructor()).run();
     } else {
         #[cfg(not(target_arch = "wasm32"))]
-        let server = if opt.with_server {
-            let server = simple_net::Server::new(opt.addr(), model_constructor());
+        let server = if let Some(addr) = &opt.server {
+            let server = simple_net::Server::new(addr, model_constructor());
             let server_handle = server.handle();
             let server_thread = std::thread::spawn(move || {
                 server.run();
@@ -88,7 +89,7 @@ fn main() {
         };
 
         let geng = Geng::new("Extremely Extreme Sports");
-        let state = simple_net::ConnectingState::new(&geng, opt.addr(), {
+        let state = simple_net::ConnectingState::new(&geng, opt.connect.as_deref().unwrap(), {
             let geng = geng.clone();
             move |player_id, model| game_constructor(&geng, player_id, model)
         });
