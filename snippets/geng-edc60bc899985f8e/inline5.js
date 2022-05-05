@@ -1,9 +1,7 @@
 
-        export function run(main_loop) {
-            function main_loop_wrapper() {
-                main_loop();
-                window.requestAnimationFrame(main_loop_wrapper);
-            }
-            main_loop_wrapper();
-        }
-        
+    export function show_error(text) {
+        document.getElementById("geng-canvas").style.display = "none";
+        document.getElementById("error-message").textContent = text;
+        document.getElementById("geng-error-screen").style.display = "block";
+    }
+    

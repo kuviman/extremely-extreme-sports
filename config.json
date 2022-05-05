@@ -1,0 +1,17 @@
+{
+    "avalanche": {
+        "min_speed": 7.0,
+        "max_speed": 11.0,
+        "acceleration": 0.06666,
+        "start": 30.0
+    },
+    "track": {
+        "length": 1500.0,
+        "width": 30.0,
+        "safe_middle": 2.5,
+        "obstacle_density": 0.2,
+        "distance_between_obstacles": 0.5,
+        "spawn_area": 10.0,
+        "spawn_width": 10.0
+    }
+}
