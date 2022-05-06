@@ -101,7 +101,7 @@ impl Game {
             framebuffer_size: vec2(1, 1),
             interpolated_players: default(),
             time: 0.0,
-            volume: 0.5,
+            volume: autosave::load("volume.json").unwrap_or(0.5),
             show_player_names: true,
             explosion_time: None,
             geng: geng.clone(),
@@ -448,9 +448,11 @@ impl geng::State for Game {
             self.next_update += delta_time;
             if self.geng.window().is_key_pressed(geng::Key::PageUp) {
                 self.volume += delta_time;
+                autosave::save("volume.json", &self.volume);
             }
             if self.geng.window().is_key_pressed(geng::Key::PageDown) {
                 self.volume -= delta_time;
+                autosave::save("volume.json", &self.volume);
             }
             self.volume = self.volume.clamp(0.0, 1.0);
 
