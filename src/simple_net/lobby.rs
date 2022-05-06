@@ -74,8 +74,8 @@ impl<T: Model, G: geng::State> geng::State for ConnectingState<T, G> {
                 return Some(geng::Transition::Switch(Box::new(self.f.take().unwrap()(
                     player_id,
                     Remote {
-                        connection: RefCell::new(connection),
-                        model: RefCell::new(initial_state),
+                        connection: Rc::new(RefCell::new(connection)),
+                        model: Rc::new(RefCell::new(initial_state)),
                     },
                 ))));
             }

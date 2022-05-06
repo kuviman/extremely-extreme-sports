@@ -28,9 +28,10 @@ pub enum ServerMessage<T: Model> {
     Events(Vec<T::Event>),
 }
 
+#[derive(Clone)]
 pub struct Remote<T: Model> {
-    connection: RefCell<net::client::Connection<ServerMessage<T>, T::Message>>,
-    model: RefCell<T>,
+    connection: Rc<RefCell<net::client::Connection<ServerMessage<T>, T::Message>>>,
+    model: Rc<RefCell<T>>,
 }
 
 impl<T: Model> Remote<T> {

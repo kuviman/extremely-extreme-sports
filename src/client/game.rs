@@ -36,9 +36,54 @@ pub struct Game {
     avalanche_sound_effect: geng::SoundEffect,
     music: Option<geng::SoundEffect>,
     spawn_particles: Vec<(f32, Vec2<f32>)>,
+    ui_camera: geng::Camera2d,
+    ui_controller: ui::Controller,
+    transition: Option<geng::Transition>,
+}
+
+impl Drop for Game {
+    fn drop(&mut self) {
+        if let Some(effect) = &mut self.music {
+            effect.pause();
+        }
+        self.ride_sound_effect.pause();
+        self.avalanche_sound_effect.pause();
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum UiMessage {
+    Menu,
 }
 
 impl Game {
+    fn ui_buttons(&self) -> Vec<ui::Button<UiMessage>> {
+        vec![ui::Button::new(
+            "menu",
+            (self
+                .ui_camera
+                .view_area(self.framebuffer_size.map(|x| x as f32))
+                .transform
+                * vec3(-1.0, 1.0, 1.0))
+            .xy()
+                + vec2(0.1, -0.5),
+            0.4,
+            0.0,
+            UiMessage::Menu,
+        )]
+    }
+    fn handle_ui(&mut self, message: UiMessage) {
+        match message {
+            UiMessage::Menu => {
+                self.transition = Some(geng::Transition::Switch(Box::new(Lobby::new(
+                    &self.geng,
+                    &self.assets,
+                    self.player_id,
+                    self.model.clone(),
+                ))));
+            }
+        }
+    }
     pub fn new(
         geng: &Geng,
         assets: &Rc<Assets>,
@@ -138,6 +183,13 @@ impl Game {
                 ],
             ),
             next_particle: 0.0,
+            ui_camera: geng::Camera2d {
+                center: vec2(0.0, 0.0),
+                rotation: 0.0,
+                fov: 10.0,
+            },
+            ui_controller: ui::Controller::new(geng, assets),
+            transition: None,
         }
     }
 
@@ -296,7 +348,13 @@ impl Game {
 }
 
 impl geng::State for Game {
+    fn transition(&mut self) -> Option<geng::Transition> {
+        self.transition.take()
+    }
     fn handle_event(&mut self, event: geng::Event) {
+        for message in self.ui_controller.handle_event(&event, self.ui_buttons()) {
+            self.handle_ui(message);
+        }
         if self.music.is_none() {
             self.music = Some(self.assets.music.play());
         }
@@ -1180,5 +1238,7 @@ impl geng::State for Game {
                 ),
             );
         }
+        self.ui_controller
+            .draw(framebuffer, &self.ui_camera, self.ui_buttons());
     }
 }
