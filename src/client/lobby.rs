@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Debug, Copy, Clone)]
 pub enum UiMessage {
     Input(char),
     Delete,
@@ -39,6 +40,7 @@ pub struct Lobby {
     config: skin::Config,
     state: State,
     skin_renderer: skin::Renderer,
+    ui_controller: ui::Controller,
 }
 
 impl Lobby {
@@ -111,6 +113,7 @@ impl Lobby {
             skin_renderer: skin::Renderer::new(geng, &config, assets),
             config,
             state: State::Main,
+            ui_controller: ui::Controller::new(geng, assets),
         }
     }
     fn handle_ui(&mut self, message: UiMessage) {
@@ -517,31 +520,8 @@ impl geng::State for Lobby {
             }
         }
 
-        for button in self.buttons() {
-            let mut position = button.position;
-            let hovered = button.aabb().contains(self.mouse);
-            if hovered
-                && self
-                    .geng
-                    .window()
-                    .is_button_pressed(geng::MouseButton::Left)
-            {
-                position.y -= button.size * 0.2;
-            }
-            self.assets.font.draw(
-                framebuffer,
-                &self.camera,
-                position,
-                button.size,
-                &button.text,
-                0.0,
-                if hovered {
-                    Color::rgb(0.5, 0.5, 1.0)
-                } else {
-                    Color::WHITE
-                },
-            );
-        }
+        self.ui_controller
+            .draw(framebuffer, &self.camera, self.buttons());
     }
 
     fn update(&mut self, delta_time: f64) {
@@ -551,6 +531,9 @@ impl geng::State for Lobby {
     }
 
     fn handle_event(&mut self, event: geng::Event) {
+        for message in self.ui_controller.handle_event(&event, self.buttons()) {
+            self.handle_ui(message);
+        }
         match event {
             geng::Event::KeyDown { key } => match key {
                 geng::Key::Space => {}
@@ -619,19 +602,6 @@ impl geng::State for Lobby {
                     self.framebuffer_size.map(|x| x as f32),
                     touches[0].position.map(|x| x as f32),
                 );
-            }
-            geng::Event::MouseUp {
-                button: geng::MouseButton::Left,
-                ..
-            }
-            | geng::Event::TouchEnd { .. } => {
-                if let Some(button) = self
-                    .buttons()
-                    .into_iter()
-                    .find(|button| button.aabb().contains(self.mouse))
-                {
-                    self.handle_ui(button.message);
-                }
             }
             _ => {}
         }
