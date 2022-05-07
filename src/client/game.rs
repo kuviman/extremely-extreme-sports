@@ -101,7 +101,9 @@ impl Game {
             framebuffer_size: vec2(1, 1),
             interpolated_players: default(),
             time: 0.0,
-            volume: autosave::load("volume.json").unwrap_or(0.5),
+            volume: autosave::load::<f64>("volume.json")
+                .unwrap_or(0.5)
+                .clamp(0.0, 1.0),
             show_player_names: true,
             explosion_time: None,
             geng: geng.clone(),
