@@ -448,13 +448,14 @@ impl geng::State for Game {
             self.next_update += delta_time;
             if self.geng.window().is_key_pressed(geng::Key::PageUp) {
                 self.volume += delta_time;
+                self.volume = self.volume.clamp(0.0, 1.0);
                 autosave::save("volume.json", &self.volume);
             }
             if self.geng.window().is_key_pressed(geng::Key::PageDown) {
                 self.volume -= delta_time;
+                self.volume = self.volume.clamp(0.0, 1.0);
                 autosave::save("volume.json", &self.volume);
             }
-            self.volume = self.volume.clamp(0.0, 1.0);
 
             let delta_time = delta_time as f32;
             self.time += delta_time;
