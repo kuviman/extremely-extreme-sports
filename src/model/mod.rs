@@ -45,6 +45,7 @@ pub enum Message {
     UpdatePlayer(Player),
     Score(i32),
     StartTheRace,
+    Disconnect,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

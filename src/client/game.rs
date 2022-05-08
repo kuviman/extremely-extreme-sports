@@ -75,6 +75,7 @@ impl Game {
     fn handle_ui(&mut self, message: UiMessage) {
         match message {
             UiMessage::Menu => {
+                self.model.send(Message::Disconnect);
                 self.transition = Some(geng::Transition::Switch(Box::new(Lobby::new(
                     &self.geng,
                     &self.assets,

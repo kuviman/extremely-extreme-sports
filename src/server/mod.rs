@@ -81,6 +81,9 @@ impl simple_net::Model for Model {
     ) {
         let player_id = *player_id;
         match message {
+            Message::Disconnect => {
+                self.drop_player(events, &player_id);
+            }
             Message::UpdatePlayer(mut player) => {
                 if player.id != player_id {
                     return;
