@@ -364,7 +364,10 @@ impl Renderer {
         {
             let texture = &self.assets.textures[&part.texture];
             let parent_matrix = match &part.parent {
-                Some(name) => part_matrices[name.as_str()],
+                Some(name) => part_matrices
+                    .get(name.as_str())
+                    .copied()
+                    .unwrap_or(Mat3::identity()),
                 None => Mat3::identity(),
             };
             let position_wiggle = part.position.interpolate(turn, speed);
