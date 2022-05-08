@@ -42,13 +42,13 @@ impl simple_net::Model for Model {
     type Message = Message;
     type Event = Event;
     const TICKS_PER_SECOND: f32 = TICKS_PER_SECOND;
-    fn new_player(&mut self) -> Self::PlayerId {
+    fn new_player(&mut self, events: &mut Vec<Event>) -> Self::PlayerId {
         let player_id = self.next_id;
         self.next_id += 1;
         player_id
     }
 
-    fn drop_player(&mut self, player_id: &Self::PlayerId) {
+    fn drop_player(&mut self, events: &mut Vec<Event>, player_id: &Self::PlayerId) {
         if let Some(player) = self.players.remove(&player_id) {
             discord::send_activity(&format!(
                 "{} left the server :woman_tipping_hand:",
@@ -57,7 +57,12 @@ impl simple_net::Model for Model {
         }
     }
 
-    fn handle_message(&mut self, player_id: &Self::PlayerId, message: Message) {
+    fn handle_message(
+        &mut self,
+        events: &mut Vec<Event>,
+        player_id: &Self::PlayerId,
+        message: Message,
+    ) {
         let player_id = *player_id;
         match message {
             Message::UpdatePlayer(mut player) => {
