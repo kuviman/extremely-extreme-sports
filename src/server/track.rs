@@ -148,6 +148,8 @@ impl TrackGen {
             assert_eq!(self.last.len(), 3);
         }
         track.shape.retain(|s| s.y < start);
+        track.obstacles.sort_by_key(|o| r32(-o.position.y));
+        // println!("{:?}/{:?}", track.obstacles.len(), track.shape.len());
         track.obstacles.retain(|o| o.position.y < start);
     }
 }
