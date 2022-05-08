@@ -1179,7 +1179,7 @@ impl geng::State for Game {
                     framebuffer,
                     &self.camera,
                     &draw_2d::TexturedQuad::new(
-                        AABB::<f32>::point(self.camera.center + vec2(0.0, -5.0)).extend_symmetric(
+                        AABB::<f32>::point(self.camera.center + vec2(0.0, -4.0)).extend_symmetric(
                             self.assets.spectating_text.size().map(|x| x as f32) * 0.05,
                         ),
                         &self.assets.spectating_text,
