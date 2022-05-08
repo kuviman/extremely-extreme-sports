@@ -89,7 +89,11 @@ fn main() {
             None
         };
 
-        let geng = Geng::new("Extremely Extreme Sports");
+        let geng = Geng::new_with(geng::ContextOptions {
+            title: "Extremely Extreme Sports".to_owned(),
+            antialias: false,
+            ..default()
+        });
         let state = simple_net::ConnectingState::new(&geng, opt.connect.as_deref().unwrap(), {
             let geng = geng.clone();
             move |player_id, model| game_constructor(&geng, player_id, model)

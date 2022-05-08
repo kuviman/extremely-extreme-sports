@@ -42,6 +42,7 @@ pub struct Game {
     spawn_particles: Vec<(f32, Vec2<f32>)>,
     ui_camera: geng::Camera2d,
     ui_controller: ui::Controller,
+    minimap_full: bool,
     transition: Option<geng::Transition>,
 }
 
@@ -98,6 +99,7 @@ impl Game {
         auto_sound: bool,
     ) -> Self {
         Self {
+            minimap_full: false,
             next_update: 0.0,
             music: Some(assets.music.play()),
             touches: 0,
@@ -410,6 +412,9 @@ impl geng::State for Game {
         }
         match event {
             geng::Event::KeyDown { key } => match key {
+                geng::Key::M => {
+                    self.minimap_full = !self.minimap_full;
+                }
                 geng::Key::Space => {
                     self.press_space();
                 }
@@ -1206,6 +1211,105 @@ impl geng::State for Game {
                 );
             }
         }
+
+        {
+            // Minimap
+            let minimap_camera = geng::Camera2d {
+                center: self.camera.center + vec2(0.0, 0.0),
+                rotation: 0.0,
+                fov: 300.0,
+            };
+            let mut texture = ugli::Texture::new_uninitialized(self.geng.ugli(), vec2(128, 128));
+            texture.set_filter(ugli::Filter::Nearest);
+            {
+                let mut framebuffer = ugli::Framebuffer::new_color(
+                    self.geng.ugli(),
+                    ugli::ColorAttachment::Texture(&mut texture),
+                );
+                let framebuffer = &mut framebuffer;
+                ugli::clear(framebuffer, Some(Color::TRANSPARENT_WHITE), None);
+                let vs: Vec<_> = model
+                    .track
+                    .query_shape(
+                        minimap_camera.center.y + minimap_camera.fov * 2.0,
+                        minimap_camera.center.y - minimap_camera.fov * 2.0,
+                    )
+                    .windows(2)
+                    .flat_map(|window| {
+                        let a = &window[0];
+                        let b = &window[1];
+                        let n = (vec2(b.right, b.y) - vec2(a.right, a.y))
+                            .rotate_90()
+                            .normalize();
+                        [vec2(a.left, a.y), vec2(a.right, a.y)]
+                    })
+                    .collect();
+                if vs.len() >= 3 {
+                    self.geng.draw_2d(
+                        framebuffer,
+                        &minimap_camera,
+                        &draw_2d::Polygon::strip(vs, Color::BLACK),
+                    );
+                }
+                let player_size = 5.0;
+                for player in &self.interpolated_players {
+                    if player.id == self.player_id {
+                        continue;
+                    }
+                    self.geng.draw_2d(
+                        framebuffer,
+                        &minimap_camera,
+                        &draw_2d::Ellipse::circle(player.position, player_size, Color::BLUE),
+                    );
+                }
+                if let Some(player) = my_player {
+                    self.geng.draw_2d(
+                        framebuffer,
+                        &minimap_camera,
+                        &draw_2d::Ellipse::circle(player.position, player_size, Color::GREEN),
+                    );
+                }
+                if let Some(avalanche_position) = model.avalanche_position {
+                    self.geng.draw_2d(
+                        framebuffer,
+                        &minimap_camera,
+                        &draw_2d::Quad::new(
+                            AABB::point(vec2(minimap_camera.center.x, avalanche_position))
+                                .extend_symmetric(vec2(minimap_camera.fov, 5.0)),
+                            Color::RED,
+                        ),
+                    );
+                }
+            }
+            if self.minimap_full {
+                let size = framebuffer_size.y as f32;
+                let size = vec2(size, size);
+                self.geng.draw_2d(
+                    framebuffer,
+                    &geng::PixelPerfectCamera,
+                    &draw_2d::TexturedQuad::colored(
+                        AABB::point(framebuffer_size.map(|x| x as f32) / 2.0)
+                            .extend_symmetric(size / 2.0),
+                        &texture,
+                        Color::rgba(1.0, 1.0, 1.0, 0.2),
+                    ),
+                );
+            } else {
+                let size = framebuffer_size.y as f32 / 3.0;
+                let size = vec2(size, size);
+                self.geng.draw_2d(
+                    framebuffer,
+                    &geng::PixelPerfectCamera,
+                    &draw_2d::TexturedQuad::colored(
+                        AABB::point(framebuffer_size.map(|x| x as f32) - size)
+                            .extend_positive(size),
+                        &texture,
+                        Color::rgba(1.0, 1.0, 1.0, 0.5),
+                    ),
+                );
+            }
+        }
+
         if let Some(pos) = model.avalanche_position {
             let pos = pos - self.camera.center.y - self.camera.fov / 2.0;
             // if pos > 1.0 {
