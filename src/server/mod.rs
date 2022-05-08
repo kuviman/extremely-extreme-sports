@@ -177,7 +177,7 @@ impl simple_net::Model for Model {
                         }
                     }
                 } else {
-                    self.shared.reset_timer = 1.0;
+                    self.shared.reset_timer = 0.0;
                 }
             }
         }
