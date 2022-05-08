@@ -9,7 +9,9 @@ pub mod server;
 #[cfg(not(target_arch = "wasm32"))]
 pub use server::*;
 
-pub trait Model: Diff + net::Message {
+pub trait Model: 'static + Send {
+    type SharedState: Diff + net::Message;
+    fn shared_state(&self) -> &Self::SharedState;
     type PlayerId: net::Message + Clone;
     type Message: net::Message;
     type Event: net::Message + Clone;
@@ -25,18 +27,19 @@ pub trait Model: Diff + net::Message {
     fn tick(&mut self, events: &mut Vec<Self::Event>);
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug(bound = ""))]
 pub enum ServerMessage<T: Model> {
     PlayerId(T::PlayerId),
-    Delta(#[serde(bound = "")] <T as Diff>::Delta),
-    Full(#[serde(bound = "")] T),
+    Delta(#[serde(bound = "")] <T::SharedState as Diff>::Delta),
+    Full(#[serde(bound = "")] T::SharedState),
     Events(Vec<T::Event>),
 }
 
 #[derive(Clone)]
 pub struct Remote<T: Model> {
     connection: Rc<RefCell<net::client::Connection<ServerMessage<T>, T::Message>>>,
-    model: Rc<RefCell<T>>,
+    model: Rc<RefCell<T::SharedState>>,
 }
 
 impl<T: Model> Remote<T> {
@@ -53,7 +56,7 @@ impl<T: Model> Remote<T> {
         }
         events
     }
-    pub fn get(&self) -> Ref<T> {
+    pub fn get(&self) -> Ref<T::SharedState> {
         self.model.borrow()
     }
     pub fn send(&self, message: T::Message) {

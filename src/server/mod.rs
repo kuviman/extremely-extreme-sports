@@ -38,6 +38,10 @@ impl Model {
 }
 
 impl simple_net::Model for Model {
+    type SharedState = Self;
+    fn shared_state(&self) -> &Self::SharedState {
+        self
+    }
     type PlayerId = Id;
     type Message = Message;
     type Event = Event;

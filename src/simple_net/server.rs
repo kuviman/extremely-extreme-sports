@@ -6,7 +6,7 @@ struct ClientState<T: Model> {
 
 struct ServerState<T: Model> {
     current: T,
-    previous: T,
+    previous: T::SharedState,
     events: Vec<T::Event>,
     next_client_id: usize,
     clients: HashMap<usize, ClientState<T>>,
@@ -14,9 +14,9 @@ struct ServerState<T: Model> {
 
 impl<T: Model> ServerState<T> {
     fn send_updates(&mut self) {
-        if self.current != self.previous {
-            let delta = self.previous.diff(&self.current);
-            self.previous = self.current.clone();
+        if *self.current.shared_state() != self.previous {
+            let delta = self.previous.diff(self.current.shared_state());
+            self.previous = self.current.shared_state().clone();
             for client in self.clients.values_mut() {
                 client.sender.send(ServerMessage::Delta(delta.clone()));
             }
@@ -69,8 +69,8 @@ pub struct Server<T: Model> {
 impl<T: Model> Server<T> {
     pub fn new<A: std::net::ToSocketAddrs + Debug + Copy>(addr: A, model: T) -> Self {
         let state = Arc::new(Mutex::new(ServerState {
-            current: model.clone(),
-            previous: model,
+            previous: model.shared_state().clone(),
+            current: model,
             events: Vec::new(),
             next_client_id: 0,
             clients: HashMap::new(),
@@ -124,7 +124,7 @@ impl<T: Model> net::server::App for ServerApp<T> {
         let state: &mut ServerState<T> = &mut state;
         let player_id = state.current.new_player(&mut state.events);
         sender.send(ServerMessage::PlayerId(player_id.clone()));
-        sender.send(ServerMessage::Full(state.current.clone()));
+        sender.send(ServerMessage::Full(state.current.shared_state().clone()));
         let client_id = state.next_client_id;
         state.clients.insert(client_id, ClientState { sender });
         state.next_client_id += 1;

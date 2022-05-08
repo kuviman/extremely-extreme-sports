@@ -5,7 +5,7 @@ type Connection<T> = net::client::Connection<ServerMessage<T>, <T as Model>::Mes
 pub struct ConnectingState<T: Model, G: geng::State> {
     geng: Geng,
     #[allow(clippy::type_complexity)]
-    connection: Option<Pin<Box<dyn Future<Output = (T::PlayerId, T, Connection<T>)>>>>,
+    connection: Option<Pin<Box<dyn Future<Output = (T::PlayerId, T::SharedState, Connection<T>)>>>>,
     #[allow(clippy::type_complexity)]
     f: Option<Box<dyn FnOnce(T::PlayerId, Remote<T>) -> G + 'static>>,
     transition: Option<geng::Transition>,
