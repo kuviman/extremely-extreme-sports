@@ -7,6 +7,7 @@ impl Model {
         discord::send_activity("Server started :green_circle:");
         let config: Config = Self::read_config();
         Self {
+            reset_timer: 0.0,
             tick: 0,
             next_id: 0,
             avalanche_position: None,
@@ -110,45 +111,50 @@ impl simple_net::Model for Model {
                 if self.players.iter().all(|player| {
                     !player.is_riding || player.position.y > *position + self.avalanche_speed * 2.0
                 }) {
-                    self.avalanche_position = None;
-                    self.avalanche_speed = self.config.avalanche.min_speed;
-                    self.track = Track::new_from_env(&self.config.track);
-                    if !self.scores.is_empty() {
-                        self.scores.sort_by_key(|(_name, score)| -score);
-                        let mut text = "Race results:".to_owned();
-                        for (index, (name, score)) in self.scores.iter().enumerate() {
-                            text.push('\n');
-                            text.push_str(&(index + 1).to_string());
-                            text.push_str(". ");
-                            text.push_str(name);
-                            text.push_str(" - ");
-                            text.push_str(&score.to_string());
-                        }
-                        text.push_str("\n<:extremeBoom:963122644373368832>");
-                        discord::send_activity(&text);
+                    self.reset_timer -= delta_time;
+                    if self.reset_timer < 0.0 {
+                        self.avalanche_position = None;
+                        self.avalanche_speed = self.config.avalanche.min_speed;
+                        self.track = Track::new_from_env(&self.config.track);
+                        if !self.scores.is_empty() {
+                            self.scores.sort_by_key(|(_name, score)| -score);
+                            let mut text = "Race results:".to_owned();
+                            for (index, (name, score)) in self.scores.iter().enumerate() {
+                                text.push('\n');
+                                text.push_str(&(index + 1).to_string());
+                                text.push_str(". ");
+                                text.push_str(name);
+                                text.push_str(" - ");
+                                text.push_str(&score.to_string());
+                            }
+                            text.push_str("\n<:extremeBoom:963122644373368832>");
+                            discord::send_activity(&text);
 
-                        let current_highest_score =
-                            self.highscores.values().max().copied().unwrap_or(0);
-                        for (name, score) in &self.scores {
-                            let score = *score;
-                            if score > current_highest_score {
-                                discord::send_activity(&format!(
+                            let current_highest_score =
+                                self.highscores.values().max().copied().unwrap_or(0);
+                            for (name, score) in &self.scores {
+                                let score = *score;
+                                if score > current_highest_score {
+                                    discord::send_activity(&format!(
                                     "New highscore of {} by {} <:extremeBoom:963122644373368832>",
                                     score, name,
                                 ));
+                                }
+                                if self.highscores.get(name).copied().unwrap_or(0) < score {
+                                    self.highscores.insert(name.clone(), score);
+                                }
                             }
-                            if self.highscores.get(name).copied().unwrap_or(0) < score {
-                                self.highscores.insert(name.clone(), score);
-                            }
-                        }
-                        serde_json::to_writer_pretty(
-                            std::fs::File::create("highscores.json").unwrap(),
-                            &self.highscores,
-                        )
-                        .unwrap();
+                            serde_json::to_writer_pretty(
+                                std::fs::File::create("highscores.json").unwrap(),
+                                &self.highscores,
+                            )
+                            .unwrap();
 
-                        self.scores.clear();
+                            self.scores.clear();
+                        }
                     }
+                } else {
+                    self.reset_timer = 10.0;
                 }
             }
             if let Some(winner) = self

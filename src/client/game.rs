@@ -534,8 +534,17 @@ impl geng::State for Game {
                         target_player = Some(player);
                     }
                 }
+                if model.avalanche_position.is_some()
+                    && target_player.is_some()
+                    && !target_player.unwrap().is_riding
+                {
+                    target_player = None;
+                }
                 let mut target_center = if let Some(target_player) = target_player {
                     target_player.position + target_player.velocity * 0.5
+                } else if let Some(position) = model.avalanche_position {
+                    let position = position - 5.0;
+                    vec2(model.track.at(position).middle(), position)
                 } else {
                     vec2(0.0, 0.0)
                 };

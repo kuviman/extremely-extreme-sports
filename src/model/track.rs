@@ -29,6 +29,12 @@ pub struct ShapePoint {
     pub safe_right: f32,
 }
 
+impl ShapePoint {
+    pub fn middle(&self) -> f32 {
+        (self.safe_left + self.safe_right) / 2.0
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Track {
     pub obstacles: Vec<Obstacle>,
@@ -67,7 +73,7 @@ impl Track {
     pub fn at_shape(shape: &Vec<ShapePoint>, y: f32) -> ShapePoint {
         let idx = match shape.binary_search_by_key(&r32(-y), |point| r32(-point.y)) {
             Ok(idx) => idx,
-            Err(idx) => idx - 1,
+            Err(idx) => idx.max(1) - 1,
         }
         .min(shape.len() - 2);
         fn lerp(a: f32, b: f32, t: f32) -> f32 {

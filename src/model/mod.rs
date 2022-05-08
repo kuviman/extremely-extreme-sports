@@ -37,6 +37,7 @@ pub struct Model {
     pub highscores: HashMap<String, i32>,
     #[diff = "eq"]
     pub scores: Vec<(String, i32)>,
+    pub reset_timer: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
