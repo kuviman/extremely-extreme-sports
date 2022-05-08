@@ -371,6 +371,22 @@ impl Game {
             };
         }
     }
+    fn press_space(&mut self) {
+        if let Some(my_player) = self.players.get_mut(&self.player_id) {
+            if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
+                self.model.send(Message::StartTheRace);
+            }
+            let model = self.model.get();
+            if model.avalanche_position.is_some() && !my_player.is_riding {
+                let y = model.avalanche_position.unwrap()
+                    - model.config.avalanche.start
+                    - model.avalanche_speed * Player::PARACHUTE_TIME;
+                my_player.position = vec2(model.track.at(y).middle(), y);
+                my_player.start_y = my_player.position.y;
+                my_player.parachute = Some(Player::PARACHUTE_TIME);
+            }
+        }
+    }
 }
 
 impl geng::State for Game {
@@ -387,19 +403,7 @@ impl geng::State for Game {
         match event {
             geng::Event::KeyDown { key } => match key {
                 geng::Key::Space => {
-                    let my_player = self.players.get_mut(&self.player_id).unwrap();
-                    if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
-                        self.model.send(Message::StartTheRace);
-                    }
-                    let model = self.model.get();
-                    if model.avalanche_position.is_some() && !my_player.is_riding {
-                        let y = model.avalanche_position.unwrap()
-                            - model.config.avalanche.start
-                            - model.avalanche_speed * Player::PARACHUTE_TIME;
-                        my_player.position = vec2(model.track.at(y).middle(), y);
-                        my_player.start_y = my_player.position.y;
-                        my_player.parachute = Some(Player::PARACHUTE_TIME);
-                    }
+                    self.press_space();
                 }
                 geng::Key::H => {
                     self.show_player_names = !self.show_player_names;
@@ -430,22 +434,14 @@ impl geng::State for Game {
             } => {
                 self.touch_control = Some(position.map(|x| x as f32));
                 if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
-                    if let Some(my_player) = self.players.get(&self.player_id) {
-                        if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
-                            self.model.send(Message::StartTheRace);
-                        }
-                    }
+                    self.press_space();
                 }
             }
             geng::Event::TouchStart { touches } => {
                 self.touches = touches.len();
                 self.touch_control = Some(touches[0].position.map(|x| x as f32));
                 if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
-                    if let Some(my_player) = self.players.get(&self.player_id) {
-                        if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
-                            self.model.send(Message::StartTheRace);
-                        }
-                    }
+                    self.press_space();
                 }
             }
             geng::Event::TouchMove { touches } => {
