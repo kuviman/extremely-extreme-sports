@@ -73,6 +73,7 @@ pub struct Player {
     pub seen_no_avalanche: bool,
     pub crash_position: Vec2<f32>,
     pub ride_volume: f32,
+    pub parachute: Option<f32>,
 }
 
 impl Player {
@@ -84,4 +85,5 @@ impl Player {
     pub const DOWNHILL_ACCELERATION: f32 = 5.0;
     pub const WALK_ACCELERATION: f32 = 20.0;
     pub const CRASH_DECELERATION: f32 = 10.0;
+    pub const PARACHUTE_TIME: f32 = 2.0;
 }

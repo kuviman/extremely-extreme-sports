@@ -120,7 +120,11 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn parts<'a>(&'a self, assets: &'a Assets) -> Box<dyn Iterator<Item = &'a Part> + 'a> {
+    pub fn parts<'a>(
+        &'a self,
+        assets: &'a Assets,
+        parachute: bool,
+    ) -> Box<dyn Iterator<Item = &'a Part> + 'a> {
         let mut result = Vec::new();
         if let Some(name) = &self.secret {
             result.extend(
@@ -143,6 +147,9 @@ impl Config {
         }
         if let Some(name) = &self.coat {
             result.extend(assets.player.coat[name].parts.iter());
+        }
+        if parachute {
+            result.extend(&assets.player.parachute.parts);
         }
         Box::new(result.into_iter())
     }
@@ -190,6 +197,7 @@ pub struct DrawInstance {
     pub ski_rotation: f32,
     pub is_riding: bool,
     pub crash_position: Vec2<f32>,
+    pub parachute: Option<f32>,
 }
 
 impl Renderer {
@@ -218,21 +226,21 @@ impl Renderer {
             time: 0.0,
             state: RefCell::new(State {
                 position: config
-                    .parts(assets)
+                    .parts(assets, true)
                     .map(|_| PartState {
                         phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
                         frequency: 0.0,
                     })
                     .collect(),
                 rotation: config
-                    .parts(assets)
+                    .parts(assets, true)
                     .map(|_| PartState {
                         phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
                         frequency: 0.0,
                     })
                     .collect(),
                 scale: config
-                    .parts(assets)
+                    .parts(assets, true)
                     .map(|_| PartState {
                         phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
                         frequency: 0.0,
@@ -260,6 +268,19 @@ impl Renderer {
         camera: &impl geng::AbstractCamera2d,
         player: &DrawInstance,
     ) {
+        let draw_position = player.position
+            + if player.is_riding {
+                vec2(0.0, 0.0)
+            } else {
+                vec2(
+                    0.0,
+                    player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
+                )
+            }
+            + match player.parachute {
+                Some(t) => vec2(0.0, 10.0 * t),
+                None => Vec2::ZERO,
+            };
         let mut draw_texture =
             |texture: &ugli::Texture, transform: Mat3<f32>, color: Color<f32>| {
                 let framebuffer_size = framebuffer.size();
@@ -288,16 +309,16 @@ impl Renderer {
                 .unwrap_or_else(|| &self.assets.textures[name])
         });
         if let Some(equipment) = equipment {
-            if !player.crashed && player.is_riding {
+            if (!player.crashed && player.is_riding) || player.parachute.is_some() {
                 draw_texture(
                     equipment,
-                    Mat3::translate(player.position) * Mat3::rotate(player.rotation),
+                    Mat3::translate(draw_position) * Mat3::rotate(player.rotation),
                     Color::WHITE,
                 );
             } else if !player.crashed {
                 draw_texture(
                     equipment,
-                    Mat3::translate(player.position + vec2(0.0, 1.0)),
+                    Mat3::translate(draw_position + vec2(0.0, 1.0)),
                     Color::WHITE,
                 );
             }
@@ -315,17 +336,8 @@ impl Renderer {
             }
         }
 
-        let final_matrix = Mat3::translate(
-            player.position
-                + if player.is_riding {
-                    vec2(0.0, 0.0)
-                } else {
-                    vec2(
-                        0.0,
-                        player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
-                    )
-                },
-        ) * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0))
+        let final_matrix = Mat3::translate(draw_position)
+            * Mat3::rotate((player.crash_timer * 7.0).min(f32::PI / 2.0))
             * Mat3::scale_uniform(1.0 / 64.0);
         let turn = if player.is_riding {
             player.rotation / Player::ROTATION_LIMIT
@@ -345,7 +357,11 @@ impl Renderer {
             z: i32,
         }
         let mut q = Vec::new();
-        for (i, part) in self.config.parts(&self.assets).enumerate() {
+        for (i, part) in self
+            .config
+            .parts(&self.assets, player.parachute.is_some())
+            .enumerate()
+        {
             let texture = &self.assets.textures[&part.texture];
             let parent_matrix = match &part.parent {
                 Some(name) => part_matrices[name.as_str()],

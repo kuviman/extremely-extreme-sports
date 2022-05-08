@@ -20,6 +20,7 @@ pub struct PlayerAssets {
     pub body: skin::ItemConfig,
     #[asset(load_with = "load_secret(geng, base_path.to_owned())")]
     pub secret: HashMap<String, skin::SecretConfig>,
+    pub parachute: skin::ItemConfig,
 }
 
 async fn load_equipment(
@@ -115,6 +116,13 @@ impl Assets {
         paths.extend(
             self.player
                 .body
+                .parts
+                .iter()
+                .map(|part| part.texture.as_str()),
+        );
+        paths.extend(
+            self.player
+                .parachute
                 .parts
                 .iter()
                 .map(|part| part.texture.as_str()),

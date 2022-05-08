@@ -122,6 +122,7 @@ impl Game {
                 if let (Some(name), Some(config)) = (name, config) {
                     result.insert(Player {
                         emote: None,
+                        parachute: None,
                         id: player_id,
                         name,
                         config,
@@ -297,6 +298,7 @@ impl Game {
                     ski_rotation: player.ski_rotation,
                     is_riding: player.is_riding,
                     crash_position: player.crash_position,
+                    parachute: player.parachute.map(|x| x / Player::PARACHUTE_TIME),
                 },
             );
         }
@@ -304,7 +306,14 @@ impl Game {
             self.draw_texture(
                 framebuffer,
                 &self.assets.emotes[index],
-                Mat3::translate(player.position + vec2(0.0, 1.8)) * Mat3::scale_uniform(0.3),
+                Mat3::translate(
+                    player.position
+                        + vec2(0.0, 1.8)
+                        + vec2(
+                            0.0,
+                            player.parachute.unwrap_or(0.0) * 10.0 / Player::PARACHUTE_TIME,
+                        ),
+                ) * Mat3::scale_uniform(0.3),
                 Color::WHITE,
             );
         }
@@ -327,13 +336,26 @@ impl Game {
             let i = self.interpolated_players.get_mut(&player.id).unwrap();
             const EXPECTED_PING: f32 = 0.3;
             *i = Player {
+                parachute: match (i.parachute, player.parachute) {
+                    (Some(from), Some(to)) => Some(from + (to - from) / EXPECTED_PING * delta_time),
+                    (None, Some(to)) => Some(to),
+                    (Some(from), None) => {
+                        let value = from - delta_time;
+                        if value > 0.0 {
+                            Some(value)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                },
                 id: player.id,
                 emote: player.emote,
                 name: player.name.clone(),
                 position: i.position + (player.position - i.position) / EXPECTED_PING * delta_time,
                 config: player.config.clone(),
                 radius: player.radius,
-                rotation: player.rotation,
+                rotation: i.rotation + (player.rotation - i.rotation) / EXPECTED_PING * delta_time,
                 input: player.input,
                 velocity: i.velocity + (player.velocity - i.velocity) / EXPECTED_PING * delta_time,
                 crashed: player.crashed,
@@ -363,9 +385,17 @@ impl geng::State for Game {
         match event {
             geng::Event::KeyDown { key } => match key {
                 geng::Key::Space => {
-                    let my_player = self.players.get(&self.player_id).unwrap();
+                    let my_player = self.players.get_mut(&self.player_id).unwrap();
                     if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
                         self.model.send(Message::StartTheRace);
+                    }
+                    let model = self.model.get();
+                    if model.avalanche_position.is_some() && !my_player.is_riding {
+                        let y = model.avalanche_position.unwrap()
+                            - model.config.avalanche.start
+                            - model.avalanche_speed * Player::PARACHUTE_TIME;
+                        my_player.position = vec2(model.track.at(y).middle(), y);
+                        my_player.parachute = Some(Player::PARACHUTE_TIME);
                     }
                 }
                 geng::Key::H => {
@@ -520,10 +550,11 @@ impl geng::State for Game {
                     renderer.update(delta_time);
                 }
 
-                let my_player = self.interpolated_players.get(&self.player_id);
+                let my_player = self.players.get(&self.player_id);
                 let mut target_player = my_player;
                 if my_player.is_none()
                     || (!my_player.as_ref().unwrap().is_riding
+                        && my_player.unwrap().parachute.is_none()
                         && model.avalanche_position.is_some())
                 {
                     if let Some(player) = self
@@ -537,6 +568,7 @@ impl geng::State for Game {
                 if model.avalanche_position.is_some()
                     && target_player.is_some()
                     && !target_player.unwrap().is_riding
+                    && target_player.unwrap().parachute.is_none()
                 {
                     target_player = None;
                 }
@@ -614,7 +646,13 @@ impl geng::State for Game {
                 }
                 for player in &mut self.players {
                     let shape_point = model.track.at(player.position.y);
-                    if !player.is_riding {
+                    if let Some(parachute) = &mut player.parachute {
+                        *parachute -= delta_time;
+                        if *parachute < 0.0 {
+                            player.is_riding = true;
+                            player.parachute = None;
+                        }
+                    } else if !player.is_riding {
                         player.update_walk(delta_time);
                         player.position.x = player.position.x.clamp(
                             shape_point.safe_left + player.radius,
@@ -749,7 +787,9 @@ impl geng::State for Game {
         //     .unwrap_or(self.players.get(&self.player_id).unwrap());
         let mut target_player = my_player;
         if my_player.is_none()
-            || (!my_player.as_ref().unwrap().is_riding && model.avalanche_position.is_some())
+            || (!my_player.as_ref().unwrap().is_riding
+                && my_player.unwrap().parachute.is_none()
+                && model.avalanche_position.is_some())
         {
             if let Some(player) = self
                 .interpolated_players
@@ -1140,7 +1180,12 @@ impl geng::State for Game {
                 self.assets.font.draw(
                     framebuffer,
                     &self.camera,
-                    player.position + vec2(0.0, 1.0),
+                    player.position
+                        + vec2(0.0, 1.0)
+                        + vec2(
+                            0.0,
+                            player.parachute.unwrap_or(0.0) * 10.0 / Player::PARACHUTE_TIME,
+                        ),
                     0.5,
                     &player.name,
                     0.5,

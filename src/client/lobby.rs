@@ -483,6 +483,7 @@ impl geng::State for Lobby {
                         ski_rotation: 0.0,
                         is_riding: false,
                         crash_position: Vec2::ZERO,
+                        parachute: None,
                     },
                 );
 

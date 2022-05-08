@@ -1,0 +1,29 @@
+{
+    "parts": [
+        {
+            "name": "parachute",
+            "parent": "body",
+            "z": -1,
+            "texture": "player/parachute.png",
+            "origin": [
+                64,
+                10
+            ],
+            "position": {
+                "still": {
+                    "base": [
+                        64,
+                        80
+                    ]
+                }
+            },
+            "rotation": {
+                "still": {
+                    "base": 0,
+                    "amplitude": 5,
+                    "frequency": 1
+                }
+            }
+        }
+    ]
+}
