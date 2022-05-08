@@ -40,6 +40,8 @@ impl Player {
             rotation: 0.0,
             velocity: Vec2::ZERO,
             crashed: false,
+            parachute: None,
+            start_y: 0.0,
             crash_timer: 0.0,
             is_riding: false,
             seen_no_avalanche: false,
