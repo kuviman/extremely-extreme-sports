@@ -17,6 +17,14 @@
                     ]
                 }
             },
+            "scale": {
+                "still": {
+                    "base": [
+                        2,
+                        2
+                    ]
+                }
+            },
             "rotation": {
                 "still": {
                     "base": 0,
