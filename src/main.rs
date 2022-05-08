@@ -13,6 +13,7 @@ mod ui;
 use assets::*;
 use font::*;
 use model::*;
+use server::Model;
 
 const DISCORD_LINK: &'static str = "https://discord.gg/DZaEMPpANY";
 

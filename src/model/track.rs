@@ -2,13 +2,15 @@ use super::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct TrackConfig {
-    pub length: f32,
     pub width: f32,
     pub safe_middle: f32,
     pub obstacle_density: f32,
     pub distance_between_obstacles: f32,
     pub spawn_area: f32,
     pub spawn_width: f32,
+    pub step: f32,
+    pub max_curve: f32,
+    pub curve_exp: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
@@ -71,6 +73,17 @@ impl Track {
         &self.shape[start..end]
     }
     pub fn at_shape(shape: &Vec<ShapePoint>, y: f32) -> ShapePoint {
+        if shape.is_empty() {
+            return ShapePoint {
+                y,
+                left: -10.0,
+                right: 10.0,
+                left_len: 0.0,
+                right_len: 0.0,
+                safe_left: -5.0,
+                safe_right: 5.0,
+            };
+        }
         let idx = match shape.binary_search_by_key(&r32(-y), |point| r32(-point.y)) {
             Ok(idx) => idx,
             Err(idx) => idx.max(1) - 1,

@@ -781,10 +781,8 @@ impl geng::State for Game {
         let model = self.model.get();
 
         let my_player = self.players.get(&self.player_id);
-        // self
-        //     .interpolated_players
-        //     .get(&self.player_id)
-        //     .unwrap_or(self.players.get(&self.player_id).unwrap());
+
+        // TODO: remove this copypasta
         let mut target_player = my_player;
         if my_player.is_none()
             || (!my_player.as_ref().unwrap().is_riding
@@ -798,6 +796,13 @@ impl geng::State for Game {
             {
                 target_player = Some(player);
             }
+        }
+        if model.avalanche_position.is_some()
+            && target_player.is_some()
+            && !target_player.unwrap().is_riding
+            && target_player.unwrap().parachute.is_none()
+        {
+            target_player = None;
         }
 
         // let mut new_trail_texture =
@@ -959,74 +964,74 @@ impl geng::State for Game {
         );
         {
             const OFF: f32 = 2.0;
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::TexturedPolygon::strip(
-                    model
-                        .track
-                        .query_shape(
-                            self.camera.center.y + self.camera.fov * 2.0,
-                            self.camera.center.y - self.camera.fov * 2.0,
-                        )
-                        .windows(2)
-                        .flat_map(|window| {
-                            let a = &window[0];
-                            let b = &window[1];
-                            let n = -(vec2(b.left, b.y) - vec2(a.left, a.y))
-                                .rotate_90()
-                                .normalize();
-                            [
-                                draw_2d::TexturedVertex {
-                                    a_pos: vec2(a.left, a.y),
-                                    a_color: Color::WHITE,
-                                    a_vt: vec2(0.0, a.left_len / 2.0),
-                                },
-                                draw_2d::TexturedVertex {
-                                    a_pos: vec2(a.left, a.y) + n * OFF,
-                                    a_color: Color::WHITE,
-                                    a_vt: vec2(1.0, a.left_len / 2.0),
-                                },
-                            ]
-                        })
-                        .collect(),
-                    &self.assets.border,
-                ),
-            );
-            self.geng.draw_2d(
-                framebuffer,
-                &self.camera,
-                &draw_2d::TexturedPolygon::strip(
-                    model
-                        .track
-                        .query_shape(
-                            self.camera.center.y + self.camera.fov * 2.0,
-                            self.camera.center.y - self.camera.fov * 2.0,
-                        )
-                        .windows(2)
-                        .flat_map(|window| {
-                            let a = &window[0];
-                            let b = &window[1];
-                            let n = (vec2(b.right, b.y) - vec2(a.right, a.y))
-                                .rotate_90()
-                                .normalize();
-                            [
-                                draw_2d::TexturedVertex {
-                                    a_pos: vec2(a.right, a.y),
-                                    a_color: Color::WHITE,
-                                    a_vt: vec2(0.0, a.right_len / 2.0),
-                                },
-                                draw_2d::TexturedVertex {
-                                    a_pos: vec2(a.right, a.y) + n * OFF,
-                                    a_color: Color::WHITE,
-                                    a_vt: vec2(1.0, a.right_len / 2.0),
-                                },
-                            ]
-                        })
-                        .collect(),
-                    &self.assets.border,
-                ),
-            );
+            let vs: Vec<_> = model
+                .track
+                .query_shape(
+                    self.camera.center.y + self.camera.fov * 2.0,
+                    self.camera.center.y - self.camera.fov * 2.0,
+                )
+                .windows(2)
+                .flat_map(|window| {
+                    let a = &window[0];
+                    let b = &window[1];
+                    let n = -(vec2(b.left, b.y) - vec2(a.left, a.y))
+                        .rotate_90()
+                        .normalize();
+                    [
+                        draw_2d::TexturedVertex {
+                            a_pos: vec2(a.left, a.y),
+                            a_color: Color::WHITE,
+                            a_vt: vec2(0.0, a.left_len / 2.0),
+                        },
+                        draw_2d::TexturedVertex {
+                            a_pos: vec2(a.left, a.y) + n * OFF,
+                            a_color: Color::WHITE,
+                            a_vt: vec2(1.0, a.left_len / 2.0),
+                        },
+                    ]
+                })
+                .collect();
+            if vs.len() >= 3 {
+                self.geng.draw_2d(
+                    framebuffer,
+                    &self.camera,
+                    &draw_2d::TexturedPolygon::strip(vs, &self.assets.border),
+                );
+            }
+            let vs: Vec<_> = model
+                .track
+                .query_shape(
+                    self.camera.center.y + self.camera.fov * 2.0,
+                    self.camera.center.y - self.camera.fov * 2.0,
+                )
+                .windows(2)
+                .flat_map(|window| {
+                    let a = &window[0];
+                    let b = &window[1];
+                    let n = (vec2(b.right, b.y) - vec2(a.right, a.y))
+                        .rotate_90()
+                        .normalize();
+                    [
+                        draw_2d::TexturedVertex {
+                            a_pos: vec2(a.right, a.y),
+                            a_color: Color::WHITE,
+                            a_vt: vec2(0.0, a.right_len / 2.0),
+                        },
+                        draw_2d::TexturedVertex {
+                            a_pos: vec2(a.right, a.y) + n * OFF,
+                            a_color: Color::WHITE,
+                            a_vt: vec2(1.0, a.right_len / 2.0),
+                        },
+                    ]
+                })
+                .collect();
+            if vs.len() >= 3 {
+                self.geng.draw_2d(
+                    framebuffer,
+                    &self.camera,
+                    &draw_2d::TexturedPolygon::strip(vs, &self.assets.border),
+                );
+            }
         }
 
         ugli::draw(
@@ -1162,7 +1167,10 @@ impl geng::State for Game {
             );
         }
         if let Some(my_player) = &my_player {
-            if !my_player.is_riding && model.avalanche_position.is_some() {
+            if !my_player.is_riding
+                && model.avalanche_position.is_some()
+                && my_player.parachute.is_none()
+            {
                 self.geng.draw_2d(
                     framebuffer,
                     &self.camera,

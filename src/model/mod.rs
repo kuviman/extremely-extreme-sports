@@ -21,7 +21,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
-pub struct Model {
+pub struct SharedModel {
     pub tick: u64,
     pub next_id: Id,
     #[diff = "eq"]

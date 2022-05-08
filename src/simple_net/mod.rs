@@ -36,7 +36,8 @@ pub enum ServerMessage<T: Model> {
     Events(Vec<T::Event>),
 }
 
-#[derive(Clone)]
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 pub struct Remote<T: Model> {
     connection: Rc<RefCell<net::client::Connection<ServerMessage<T>, T::Message>>>,
     model: Rc<RefCell<T::SharedState>>,
