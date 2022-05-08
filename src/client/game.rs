@@ -578,7 +578,7 @@ impl geng::State for Game {
                 let mut target_center = if let Some(target_player) = target_player {
                     target_player.position + target_player.velocity * 0.5
                 } else if let Some(position) = model.avalanche_position {
-                    let position = position - 5.0;
+                    let position = (position - 5.0).min(0.0);
                     vec2(model.track.at(position).middle(), position)
                 } else {
                     vec2(0.0, 0.0)
