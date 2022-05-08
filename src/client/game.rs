@@ -9,6 +9,10 @@ pub struct Particle {
     i_opacity: f32,
 }
 
+fn can_detonate(x: f32) -> bool {
+    x >= -1.0 && x < 2.0
+}
+
 pub struct Game {
     next_update: f64,
     framebuffer_size: Vec2<usize>,
@@ -374,7 +378,7 @@ impl Game {
     }
     fn press_space(&mut self) {
         if let Some(my_player) = self.players.get_mut(&self.player_id) {
-            if my_player.position.x >= 0.0 && my_player.position.x < 1.0 {
+            if can_detonate(my_player.position.x) {
                 self.model.send(Message::StartTheRace);
             }
             let model = self.model.get();
@@ -879,10 +883,7 @@ impl geng::State for Game {
             );
         }
         if let Some(my_player) = &my_player {
-            if model.avalanche_position.is_none()
-                && my_player.position.x >= 0.0
-                && my_player.position.x < 1.0
-            {
+            if model.avalanche_position.is_none() && can_detonate(my_player.position.x) {
                 self.geng.draw_2d(
                     framebuffer,
                     &self.camera,
