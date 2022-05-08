@@ -121,6 +121,7 @@ impl Game {
                 let mut result = Collection::new();
                 if let (Some(name), Some(config)) = (name, config) {
                     result.insert(Player {
+                        start_y: 0.0,
                         emote: None,
                         parachute: None,
                         id: player_id,
@@ -349,6 +350,7 @@ impl Game {
                     }
                     _ => None,
                 },
+                start_y: player.start_y,
                 id: player.id,
                 emote: player.emote,
                 name: player.name.clone(),
@@ -395,6 +397,7 @@ impl geng::State for Game {
                             - model.config.avalanche.start
                             - model.avalanche_speed * Player::PARACHUTE_TIME;
                         my_player.position = vec2(model.track.at(y).middle(), y);
+                        my_player.start_y = my_player.position.y;
                         my_player.parachute = Some(Player::PARACHUTE_TIME);
                     }
                 }
@@ -639,8 +642,9 @@ impl geng::State for Game {
                         }
                     }
                     if me.crash_timer > 2.0 {
-                        self.model
-                            .send(Message::Score((-me.position.y * 100.0) as i32));
+                        self.model.send(Message::Score(
+                            ((me.start_y - me.position.y) * 100.0) as i32,
+                        ));
                         me.respawn();
                     }
                 }
@@ -1243,7 +1247,7 @@ impl geng::State for Game {
                 &self.camera,
                 self.camera.center + vec2(0.0, 7.0),
                 1.0,
-                &format!("winner scored {}", (*score * 100.0) as i32),
+                &format!("winner scored {}", score),
                 0.5,
                 Color::WHITE,
             );
@@ -1260,7 +1264,7 @@ impl geng::State for Game {
                     &self.camera,
                     self.camera.center + vec2(0.0, -9.0),
                     1.0,
-                    &format!("score {}", (-target_player.position.y * 100.0) as i32),
+                    &format!("score {}", target_player.score()),
                     0.5,
                     Color::WHITE,
                 );

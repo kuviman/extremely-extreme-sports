@@ -44,6 +44,9 @@ impl Font {
                             pos.x += size;
                             continue;
                         }
+                        if !self.indices.contains_key(&c) {
+                            continue;
+                        }
                         let uv = self.atlas.uv(self.indices[&c]);
                         let ps = AABB::point(pos).extend_positive(vec2(size, size));
                         pos.x += size * 0.8;

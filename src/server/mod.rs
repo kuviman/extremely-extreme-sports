@@ -33,7 +33,7 @@ impl Model {
                         default()
                     }
                 },
-                scores: vec![],
+                scores: default(),
             },
             track_gen,
         }
@@ -95,7 +95,10 @@ impl simple_net::Model for Model {
             }
             Message::Score(score) => {
                 if let Some(player) = self.shared.players.get(&player_id) {
-                    self.shared.scores.push((player.name.clone(), score));
+                    let last_score = self.shared.scores.get(&player.name).copied().unwrap_or(0);
+                    if score > last_score {
+                        self.shared.scores.insert(player.name.clone(), score);
+                    }
                 }
             }
             Message::StartTheRace => {
@@ -120,7 +123,7 @@ impl simple_net::Model for Model {
             *position -= self.shared.avalanche_speed * delta_time;
             if *position < self.shared.config.avalanche.start - 5.0 {
                 if self.shared.players.iter().all(|player| {
-                    !player.is_riding
+                    (!player.is_riding && player.parachute.is_none())
                         || player.position.y > *position + self.shared.avalanche_speed * 2.0
                 }) {
                     self.shared.reset_timer -= delta_time;
@@ -130,9 +133,16 @@ impl simple_net::Model for Model {
                         self.track_gen = TrackGen::new(&self.shared.config.track);
                         self.shared.track = self.track_gen.init();
                         if !self.shared.scores.is_empty() {
-                            self.shared.scores.sort_by_key(|(_name, score)| -score);
+                            let mut scores: Vec<(String, i32)> = self
+                                .shared
+                                .scores
+                                .iter()
+                                .map(|(a, b)| (a.clone(), *b))
+                                .collect();
+                            scores.sort_by_key(|(_name, score)| -score);
+                            self.shared.winner = Some(scores[0].clone());
                             let mut text = "Race results:".to_owned();
-                            for (index, (name, score)) in self.shared.scores.iter().enumerate() {
+                            for (index, (name, score)) in scores.iter().enumerate() {
                                 text.push('\n');
                                 text.push_str(&(index + 1).to_string());
                                 text.push_str(". ");
@@ -169,16 +179,6 @@ impl simple_net::Model for Model {
                 } else {
                     self.shared.reset_timer = 1.0;
                 }
-            }
-            if let Some(winner) = self
-                .shared
-                .players
-                .iter()
-                .filter(|player| player.is_riding)
-                .min_by_key(|player| r32(player.position.y))
-                .map(|player| (player.name.clone(), -player.position.y))
-            {
-                self.shared.winner = Some(winner);
             }
         }
         let pos = self.shared.avalanche_position.unwrap_or(0.0);

@@ -32,11 +32,11 @@ pub struct SharedModel {
     #[diff = "eq"]
     pub track: Track,
     #[diff = "eq"]
-    pub winner: Option<(String, f32)>,
+    pub winner: Option<(String, i32)>,
     #[diff = "eq"]
     pub highscores: HashMap<String, i32>,
     #[diff = "eq"]
-    pub scores: Vec<(String, i32)>,
+    pub scores: HashMap<String, i32>,
     pub reset_timer: f32,
 }
 
@@ -55,6 +55,7 @@ pub const TICKS_PER_SECOND: f32 = 10.0;
 #[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
 pub struct Player {
     pub id: Id,
+    pub start_y: f32,
     pub emote: Option<(f32, usize)>,
     #[diff = "eq"]
     pub name: String,
@@ -86,4 +87,8 @@ impl Player {
     pub const WALK_ACCELERATION: f32 = 20.0;
     pub const CRASH_DECELERATION: f32 = 10.0;
     pub const PARACHUTE_TIME: f32 = 2.0;
+
+    pub fn score(&self) -> i32 {
+        ((self.start_y - self.position.y) * 100.0) as i32
+    }
 }
