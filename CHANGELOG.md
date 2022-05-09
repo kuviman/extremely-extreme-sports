@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Infinity update
+
+- Respawning when spectating (parachuting back on track)
+- Minimap
+
+## Curved update
+
+- Curved track with safe path in the middle
+- Leaderboard
+- Smoother controls with mouse/touch controls
+
 ## Music update
 
 - New music track by fizruk
