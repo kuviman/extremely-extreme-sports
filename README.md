@@ -37,6 +37,8 @@ or `cargo run --release -- --connect ws://localhost:1155` will only run a client
 If you want to build a web version, you'll need to:
 
 ```shell
+# Tell how to connect to the server via an env var
+export CONNECT=ws://localhost:1155
 # Install wasm32-unknown-unknown target support
 rustup target add wasm32-unknown-unknown
 # Install wasm-bindgen
@@ -45,5 +47,5 @@ cargo install wasm-bindgen-cli
 cargo install cargo-geng --git https://github.com/kuviman/geng
 # Compile, run local http server and open the browser once ready
 cargo geng run --target wasm32-unknown-unknown --release
-# This will try connecting to default localhost:1155 server
+# You can also replace run with build, and then serve the target/geng directory yourself
 ```
