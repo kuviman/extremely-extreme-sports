@@ -129,15 +129,11 @@ impl Game {
                     result.insert(Player {
                         start_y: 0.0,
                         emote: None,
-                        parachute: None,
+                        state: PlayerState::SpawnWalk,
                         id: player_id,
                         name,
                         config,
-                        crash_position: Vec2::ZERO,
-                        is_riding: false,
                         seen_no_avalanche: false,
-                        ski_rotation: 0.0,
-                        crash_timer: 0.0,
                         ride_volume: 0.0,
                         position: vec2(
                             global_rng().gen_range(
@@ -150,8 +146,6 @@ impl Game {
                         rotation: 0.0,
                         input: Vec2::ZERO,
                         velocity: Vec2::ZERO,
-                        crashed: false,
-                        ski_velocity: Vec2::ZERO,
                     });
                 }
                 result
@@ -299,17 +293,7 @@ impl Game {
                     position: player.position,
                     rotation: player.rotation,
                     velocity: player.velocity,
-                    crashed: player.crashed && player.crash_timer < 2.0,
-                    crash_timer: if player.crash_timer < 2.0 {
-                        player.crash_timer
-                    } else {
-                        0.0
-                    },
-                    ski_velocity: player.ski_velocity,
-                    ski_rotation: player.ski_rotation,
-                    is_riding: player.is_riding && player.crash_timer < 2.0,
-                    crash_position: player.crash_position,
-                    parachute: player.parachute.map(|x| x / Player::PARACHUTE_TIME),
+                    state: player.state,
                 },
             );
         }
@@ -322,7 +306,11 @@ impl Game {
                         + vec2(0.0, 1.8)
                         + vec2(
                             0.0,
-                            player.parachute.unwrap_or(0.0) * 10.0 / Player::PARACHUTE_TIME,
+                            match player.state {
+                                PlayerState::Parachute { timer } => timer,
+                                _ => 0.0,
+                            } * 10.0
+                                / Player::PARACHUTE_TIME,
                         ),
                 ) * Mat3::scale_uniform(0.3),
                 Color::WHITE,
@@ -347,19 +335,27 @@ impl Game {
             let i = self.interpolated_players.get_mut(&player.id).unwrap();
             const EXPECTED_PING: f32 = 0.3;
             *i = Player {
-                parachute: match (i.parachute, player.parachute) {
-                    (Some(from), Some(to)) => Some(from + (to - from) / EXPECTED_PING * delta_time),
-                    (None, Some(to)) => Some(to),
-                    (Some(from), None) => {
+                state: match (i.state, player.state) {
+                    (
+                        PlayerState::Parachute { timer: from },
+                        PlayerState::Parachute { timer: to },
+                    ) => Some(PlayerState::Parachute {
+                        timer: from + (to - from) / EXPECTED_PING * delta_time,
+                    }),
+                    (_, PlayerState::Parachute { timer: to }) => {
+                        Some(PlayerState::Parachute { timer: to })
+                    }
+                    (PlayerState::Parachute { timer: from }, _) => {
                         let value = from - delta_time;
                         if value > 0.0 {
-                            Some(value)
+                            Some(PlayerState::Parachute { timer: value })
                         } else {
                             None
                         }
                     }
                     _ => None,
-                },
+                }
+                .unwrap_or(player.state),
                 start_y: player.start_y,
                 id: player.id,
                 emote: player.emote,
@@ -370,13 +366,7 @@ impl Game {
                 rotation: i.rotation + (player.rotation - i.rotation) / EXPECTED_PING * delta_time,
                 input: player.input,
                 velocity: i.velocity + (player.velocity - i.velocity) / EXPECTED_PING * delta_time,
-                crashed: player.crashed,
-                crash_timer: player.crash_timer,
-                ski_velocity: player.ski_velocity,
-                ski_rotation: player.ski_rotation,
-                is_riding: player.is_riding,
                 seen_no_avalanche: player.seen_no_avalanche,
-                crash_position: player.crash_position,
                 ride_volume: player.ride_volume,
             };
         }
@@ -387,17 +377,18 @@ impl Game {
                 self.model.send(Message::StartTheRace);
             }
             let model = self.model.get();
-            if model.avalanche_position.is_some() && !my_player.is_riding {
+            if model.avalanche_position.is_some() && my_player.state == PlayerState::SpawnWalk {
                 let y = model.avalanche_position.unwrap()
                     - model.config.avalanche.start
                     - model.avalanche_speed * Player::PARACHUTE_TIME;
                 my_player.position = vec2(model.track.at(y).middle(), y);
                 my_player.start_y = my_player.position.y;
-                my_player.parachute = Some(Player::PARACHUTE_TIME);
+                my_player.state = PlayerState::Parachute {
+                    timer: Player::PARACHUTE_TIME,
+                };
             }
-            if my_player.crash_timer > 2.0 {
-                my_player.crashed = false;
-                my_player.crash_timer = 0.0;
+            if let PlayerState::Walk = my_player.state {
+                my_player.state = PlayerState::Ride;
             }
         }
     }
@@ -428,9 +419,6 @@ impl geng::State for Game {
                 }
                 geng::Key::H => {
                     self.show_player_names = !self.show_player_names;
-                }
-                geng::Key::K => {
-                    self.players.get_mut(&self.player_id).unwrap().crashed = true;
                 }
                 geng::Key::R => {
                     self.players.get_mut(&self.player_id).unwrap().respawn();
@@ -584,12 +572,12 @@ impl geng::State for Game {
                     renderer.update(delta_time);
                 }
 
+                // TODO: remove this copypasta
                 let my_player = self.players.get(&self.player_id);
                 let mut target_player = my_player;
                 if my_player.is_none()
-                    || (!my_player.as_ref().unwrap().is_riding
-                        && my_player.unwrap().parachute.is_none()
-                        && model.avalanche_position.is_some())
+                    || (model.avalanche_position.is_some()
+                        && my_player.unwrap().state == PlayerState::SpawnWalk)
                 {
                     if let Some(player) = self
                         .interpolated_players
@@ -601,11 +589,11 @@ impl geng::State for Game {
                 }
                 if model.avalanche_position.is_some()
                     && target_player.is_some()
-                    && !target_player.unwrap().is_riding
-                    && target_player.unwrap().parachute.is_none()
+                    && target_player.unwrap().state == PlayerState::SpawnWalk
                 {
                     target_player = None;
                 }
+
                 let mut target_center = if let Some(target_player) = target_player {
                     target_player.position + target_player.velocity * 0.5
                 } else if let Some(position) = model.avalanche_position {
@@ -649,7 +637,7 @@ impl geng::State for Game {
                 }
                 if let Some(me) = self.players.get_mut(&self.player_id) {
                     if me.seen_no_avalanche && model.avalanche_position.is_some() {
-                        if !me.is_riding {
+                        if me.state == PlayerState::SpawnWalk {
                             for _ in 0..100 {
                                 self.explosion_time = Some(0.0);
                                 let mut sfx = self.assets.boom_sound.effect();
@@ -669,91 +657,120 @@ impl geng::State for Game {
                                     i_opacity: 0.3,
                                 })
                             }
-                            me.is_riding = true;
+                            me.state = PlayerState::Ride;
                         }
                     }
-                    if me.crash_timer > 2.0
-                        && (model.avalanche_position.is_none()
-                            || me.position.y > model.avalanche_position.unwrap())
-                    {
-                        self.model.send(Message::Score(
-                            ((me.start_y - me.position.y) * 100.0) as i32,
-                        ));
-                        me.respawn();
+                    if let PlayerState::Crash { timer, .. } = me.state {
+                        if timer > 2.0 {
+                            if model.avalanche_position.is_none()
+                                || me.position.y > model.avalanche_position.unwrap()
+                            {
+                                self.model.send(Message::Score(
+                                    ((me.start_y - me.position.y) * 100.0) as i32,
+                                ));
+                                me.respawn();
+                            } else {
+                                me.state = PlayerState::Walk;
+                            }
+                        }
                     }
                 }
                 for player in &mut self.players {
                     let shape_point = model.track.at(player.position.y);
-                    if let Some(parachute) = &mut player.parachute {
-                        *parachute -= delta_time;
-                        if *parachute < 0.0 {
-                            player.is_riding = true;
-                            player.parachute = None;
-                        }
-                    } else if !player.is_riding {
-                        player.update_walk(delta_time);
-                        player.position.y = 0.0;
-                        player.position.x = player.position.x.clamp(
-                            shape_point.safe_left + player.radius,
-                            shape_point.safe_right - player.radius,
-                        );
-                    } else if player.crash_timer > 2.0 {
-                        player.update_walk(delta_time);
-                        for obstacle in model
-                            .track
-                            .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
-                        {
-                            let delta_pos = player.position - obstacle.position;
-                            let peneration = player.radius + obstacle.radius - delta_pos.len();
-                            if peneration > 0.0 {
-                                let normal = delta_pos.normalize_or_zero();
-                                player.position += normal * peneration;
-                                player.velocity -= normal * Vec2::dot(player.velocity, normal);
+                    match &mut player.state {
+                        PlayerState::Parachute { timer } => {
+                            *timer -= delta_time;
+                            if *timer < 0.0 {
+                                player.state = PlayerState::Ride;
                             }
                         }
-                        player.position.x = player.position.x.clamp(
-                            shape_point.left + player.radius,
-                            shape_point.right - player.radius,
-                        );
-                    } else {
-                        player.update_riding(delta_time);
-                        for obstacle in model
-                            .track
-                            .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
-                        {
-                            let delta_pos = player.position - obstacle.position;
-                            let peneration = player.radius + obstacle.radius - delta_pos.len();
-                            if peneration > 0.0 {
-                                let normal = delta_pos.normalize_or_zero();
-                                player.position += normal * peneration;
-                                player.velocity -= normal * Vec2::dot(player.velocity, normal);
-                                if !player.crashed {
-                                    player.crashed = true;
+                        PlayerState::SpawnWalk => {
+                            player.update_walk(delta_time);
+                            player.position.y = 0.0;
+                            player.position.x = player.position.x.clamp(
+                                shape_point.safe_left + player.radius,
+                                shape_point.safe_right - player.radius,
+                            );
+                        }
+                        PlayerState::Walk => {
+                            player.update_walk(delta_time);
+                            for obstacle in model
+                                .track
+                                .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
+                            {
+                                let delta_pos = player.position - obstacle.position;
+                                let peneration = player.radius + obstacle.radius - delta_pos.len();
+                                if peneration > 0.0 {
+                                    let normal = delta_pos.normalize_or_zero();
+                                    player.position += normal * peneration;
+                                    player.velocity -= normal * Vec2::dot(player.velocity, normal);
+                                }
+                            }
+                            player.position.x = player.position.x.clamp(
+                                shape_point.left + player.radius,
+                                shape_point.right - player.radius,
+                            );
+                        }
+                        PlayerState::Ride | PlayerState::Crash { .. } => {
+                            player.update_riding(delta_time);
+                            for obstacle in model
+                                .track
+                                .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
+                            {
+                                let delta_pos = player.position - obstacle.position;
+                                let peneration = player.radius + obstacle.radius - delta_pos.len();
+                                if peneration > 0.0 {
+                                    let normal = delta_pos.normalize_or_zero();
+                                    player.position += normal * peneration;
+                                    player.velocity -= normal * Vec2::dot(player.velocity, normal);
+                                    // TODO: copypasta
+                                    if !matches!(player.state, PlayerState::Crash { .. }) {
+                                        player.state = PlayerState::Crash {
+                                            timer: 0.0,
+                                            ski_velocity: player.velocity,
+                                            ski_rotation: player.rotation,
+                                            crash_position: player.position,
+                                        };
+                                        sounds.push((&self.assets.crash_sounds, player.position));
+                                    }
+                                }
+                            }
+                            if player.position.x < shape_point.left + player.radius
+                                || player.position.x > shape_point.right - player.radius
+                            {
+                                // if player.position.x.abs() > TRACK_WIDTH - player.radius {
+                                // TODO: copypasta
+                                if !matches!(player.state, PlayerState::Crash { .. }) {
+                                    player.state = PlayerState::Crash {
+                                        timer: 0.0,
+                                        ski_velocity: player.velocity,
+                                        ski_rotation: player.rotation,
+                                        crash_position: player.position,
+                                    };
                                     sounds.push((&self.assets.crash_sounds, player.position));
                                 }
                             }
+                            player.position.x = player.position.x.clamp(
+                                shape_point.left + player.radius,
+                                shape_point.right - player.radius,
+                            );
                         }
-                        if player.position.x < shape_point.left + player.radius
-                            || player.position.x > shape_point.right - player.radius
-                        {
-                            // if player.position.x.abs() > TRACK_WIDTH - player.radius {
-                            if !player.crashed {
-                                player.crashed = true;
+                    }
+                    if let Some(position) = model.avalanche_position {
+                        if player.position.y > position {
+                            if !matches!(
+                                player.state,
+                                PlayerState::SpawnWalk | PlayerState::Crash { .. }
+                            ) {
+                                player.state = PlayerState::Crash {
+                                    timer: 0.0,
+                                    ski_velocity: player.velocity,
+                                    ski_rotation: player.rotation,
+                                    crash_position: player.position,
+                                };
                                 sounds.push((&self.assets.crash_sounds, player.position));
                             }
                         }
-                        if let Some(position) = model.avalanche_position {
-                            if player.position.y > position {
-                                if !player.crashed {
-                                    player.crashed = true;
-                                    sounds.push((&self.assets.crash_sounds, player.position));
-                                }
-                            }
-                        }
-                        player.position.x = player.position.x.clamp(
-                            shape_point.left + player.radius,
-                            shape_point.right - player.radius,
-                        );
                     }
                 }
                 self.next_particle -= delta_time;
@@ -761,7 +778,7 @@ impl geng::State for Game {
                     self.next_particle += 1.0 / 100.0;
                     let mut particles = Vec::new();
                     for player in &self.interpolated_players {
-                        if player.is_riding && player.crash_timer < 2.0 {
+                        if let PlayerState::Ride | PlayerState::Crash { .. } = player.state {
                             particles.push(Particle {
                                 i_pos: player.position,
                                 // i_vel: vec2(
@@ -842,9 +859,8 @@ impl geng::State for Game {
         // TODO: remove this copypasta
         let mut target_player = my_player;
         if my_player.is_none()
-            || (!my_player.as_ref().unwrap().is_riding
-                && my_player.unwrap().parachute.is_none()
-                && model.avalanche_position.is_some())
+            || (model.avalanche_position.is_some()
+                && my_player.unwrap().state == PlayerState::SpawnWalk)
         {
             if let Some(player) = self
                 .interpolated_players
@@ -856,8 +872,7 @@ impl geng::State for Game {
         }
         if model.avalanche_position.is_some()
             && target_player.is_some()
-            && !target_player.unwrap().is_riding
-            && target_player.unwrap().parachute.is_none()
+            && target_player.unwrap().state == PlayerState::SpawnWalk
         {
             target_player = None;
         }
@@ -1140,7 +1155,7 @@ impl geng::State for Game {
                 Color::rgba(0.5, 0.5, 0.5, 0.5),
             );
         }
-        if true || self.players.get(&self.player_id).unwrap().is_riding {
+        if true {
             for obstacle in model.track.query_obstacles(
                 self.camera.center.y + self.camera.fov * 2.0,
                 self.camera.center.y - self.camera.fov * 2.0,
@@ -1169,7 +1184,7 @@ impl geng::State for Game {
             );
         }
 
-        if true || self.players.get(&self.player_id).unwrap().is_riding {
+        if true {
             for obstacle in model.track.query_obstacles(
                 self.camera.center.y + self.camera.fov * 2.0,
                 self.camera.center.y - self.camera.fov * 2.0,
@@ -1221,9 +1236,8 @@ impl geng::State for Game {
             );
         }
         if let Some(my_player) = &my_player {
-            if !my_player.is_riding
-                && model.avalanche_position.is_some()
-                && my_player.parachute.is_none()
+            if model.avalanche_position.is_some()
+                && matches!(my_player.state, PlayerState::SpawnWalk)
             {
                 self.geng.draw_2d(
                     framebuffer,
@@ -1246,7 +1260,11 @@ impl geng::State for Game {
                         + vec2(0.0, 1.0)
                         + vec2(
                             0.0,
-                            player.parachute.unwrap_or(0.0) * 10.0 / Player::PARACHUTE_TIME,
+                            match player.state {
+                                PlayerState::Parachute { timer } => timer,
+                                _ => 0.0,
+                            } * 10.0
+                                / Player::PARACHUTE_TIME,
                         ),
                     0.5,
                     &player.name,
@@ -1402,7 +1420,9 @@ impl geng::State for Game {
             );
         }
         if let Some(target_player) = target_player {
-            if target_player.is_riding {
+            if let PlayerState::Ride | PlayerState::Crash { .. } | PlayerState::Walk =
+                &target_player.state
+            {
                 self.ride_sound_effect.set_volume(
                     (target_player.velocity.len() / Player::MAX_SPEED * 0.05
                         + target_player.ride_volume.min(1.0) * 0.1) as f64

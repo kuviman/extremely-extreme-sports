@@ -477,13 +477,7 @@ impl geng::State for Lobby {
                         position: vec2(-0.5, 0.0),
                         rotation: 0.0,
                         velocity: Vec2::ZERO,
-                        crashed: false,
-                        crash_timer: 0.0,
-                        ski_velocity: Vec2::ZERO,
-                        ski_rotation: 0.0,
-                        is_riding: false,
-                        crash_position: Vec2::ZERO,
-                        parachute: None,
+                        state: PlayerState::SpawnWalk,
                     },
                 );
 

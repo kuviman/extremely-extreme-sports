@@ -126,7 +126,7 @@ impl simple_net::Model for Model {
             *position -= self.shared.avalanche_speed * delta_time;
             if *position < self.shared.config.avalanche.start - 5.0 {
                 if self.shared.players.iter().all(|player| {
-                    (!player.is_riding && player.parachute.is_none())
+                    (player.state == PlayerState::SpawnWalk)
                         || player.position.y > *position + self.shared.avalanche_speed * 2.0
                 }) {
                     self.shared.reset_timer -= delta_time;

@@ -53,6 +53,22 @@ pub enum Event {}
 
 pub const TICKS_PER_SECOND: f32 = 10.0;
 
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq)]
+pub enum PlayerState {
+    SpawnWalk,
+    Walk,
+    Ride,
+    Crash {
+        timer: f32,
+        ski_velocity: Vec2<f32>,
+        ski_rotation: f32,
+        crash_position: Vec2<f32>,
+    },
+    Parachute {
+        timer: f32,
+    },
+}
+
 #[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
 pub struct Player {
     pub id: Id,
@@ -67,15 +83,9 @@ pub struct Player {
     pub rotation: f32,
     pub input: Vec2<f32>,
     pub velocity: Vec2<f32>,
-    pub crashed: bool,
-    pub crash_timer: f32,
-    pub ski_velocity: Vec2<f32>,
-    pub ski_rotation: f32,
-    pub is_riding: bool,
+    pub state: PlayerState,
     pub seen_no_avalanche: bool,
-    pub crash_position: Vec2<f32>,
     pub ride_volume: f32,
-    pub parachute: Option<f32>,
 }
 
 impl Player {
