@@ -9,11 +9,22 @@
         "width": 30.0,
         "safe_middle": 2.5,
         "obstacle_density": 0.2,
-        "distance_between_obstacles": 0.5,
+        "distance_between_obstacles": 1.0,
         "spawn_area": 10.0,
         "spawn_width": 10.0,
         "step": 10.0,
         "max_curve": 1.2,
         "curve_exp": 0.5
+    },
+    "player": {
+        "rotation_speed": 6.28,
+        "rotation_limit": 1.1,
+        "max_speed": 10.0,
+        "max_walk_speed": 3.0,
+        "friction": 3.0,
+        "downhill_acceleration": 5.0,
+        "walk_acceleration": 20.0,
+        "crash_deceleration": 10.0,
+        "parachute_time": 2.0
     }
 }
