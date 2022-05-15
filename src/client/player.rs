@@ -10,10 +10,15 @@ impl Player {
     }
     pub fn update_riding(&mut self, delta_time: f32) {
         if !self.crashed {
-            let target_rotation =
-                (self.input * Self::ROTATION_LIMIT).clamp_abs(Self::ROTATION_LIMIT);
-            self.rotation +=
-                (target_rotation - self.rotation).clamp_abs(Self::ROTATION_SPEED * delta_time);
+            if true {
+                let target_rotation =
+                    (self.input * Self::ROTATION_LIMIT).clamp_abs(Self::ROTATION_LIMIT);
+                self.rotation +=
+                    (target_rotation - self.rotation).clamp_abs(Self::ROTATION_SPEED * delta_time);
+            } else {
+                // TODO
+                self.rotation += self.input * Self::ROTATION_SPEED * delta_time;
+            }
             self.velocity.y += (-Self::MAX_SPEED - self.velocity.y)
                 .clamp_abs(Self::DOWNHILL_ACCELERATION * delta_time);
             let normal = vec2(1.0, 0.0).rotate(self.rotation);

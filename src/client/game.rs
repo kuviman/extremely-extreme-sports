@@ -534,17 +534,21 @@ impl geng::State for Game {
                     me.input += ((pos.x - self.framebuffer_size.x as f32 / 2.0)
                         / (self.framebuffer_size.x as f32 / 4.0))
                         .clamp(-1.0, 1.0);
-                }
-
-                if self.geng.window().is_key_pressed(geng::Key::A)
-                    || self.geng.window().is_key_pressed(geng::Key::Left)
-                {
-                    me.input -= 1.0;
-                }
-                if self.geng.window().is_key_pressed(geng::Key::D)
-                    || self.geng.window().is_key_pressed(geng::Key::Right)
-                {
-                    me.input += 1.0;
+                } else {
+                    if self.geng.window().is_key_pressed(geng::Key::A)
+                        || self.geng.window().is_key_pressed(geng::Key::Left)
+                    {
+                        me.input -= 1.0;
+                    }
+                    if self.geng.window().is_key_pressed(geng::Key::D)
+                        || self.geng.window().is_key_pressed(geng::Key::Right)
+                    {
+                        me.input += 1.0;
+                    }
+                    // TODO
+                    if false && !self.geng.window().is_key_pressed(geng::Key::Space) {
+                        me.input /= 2.0;
+                    }
                 }
             }
             {

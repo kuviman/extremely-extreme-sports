@@ -83,7 +83,7 @@ impl Player {
     pub const ROTATION_LIMIT: f32 = f32::PI / 3.0;
     pub const MAX_SPEED: f32 = 10.0;
     pub const MAX_WALK_SPEED: f32 = 3.0;
-    pub const FRICTION: f32 = 5.0;
+    pub const FRICTION: f32 = 3.0;
     pub const DOWNHILL_ACCELERATION: f32 = 5.0;
     pub const WALK_ACCELERATION: f32 = 20.0;
     pub const CRASH_DECELERATION: f32 = 10.0;
