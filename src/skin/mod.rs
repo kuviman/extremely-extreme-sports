@@ -270,7 +270,7 @@ impl Renderer {
                     0.0,
                     player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
                 ),
-                PlayerState::Parachute { timer } => vec2(0.0, 10.0 * timer),
+                PlayerState::Parachute { timer } => vec2(0.0, 10.0 * timer / config.parachute_time),
             };
         let mut draw_texture =
             |texture: &ugli::Texture, transform: Mat3<f32>, color: Color<f32>| {
