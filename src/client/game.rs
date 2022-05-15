@@ -1250,6 +1250,16 @@ impl geng::State for Game {
                         &self.assets.spectating_text,
                     ),
                 );
+            } else if my_player.state == PlayerState::Walk {
+                self.geng.draw_2d(
+                    framebuffer,
+                    &self.camera,
+                    &draw_2d::TexturedQuad::new(
+                        AABB::<f32>::point(self.camera.center + vec2(0.0, -4.0))
+                            .extend_symmetric(self.assets.walk.size().map(|x| x as f32) * 0.05),
+                        &self.assets.walk,
+                    ),
+                );
             }
         }
         if self.show_player_names {

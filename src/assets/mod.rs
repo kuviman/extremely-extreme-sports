@@ -87,6 +87,7 @@ pub struct Assets {
     pub detonator2: Texture,
     pub detonate_text: Texture,
     pub spectating_text: Texture,
+    pub walk: Texture,
     pub ava_warning: Texture,
     pub font: Font,
     #[asset(range = "1..=3", path = "crash_sound*.wav")]
