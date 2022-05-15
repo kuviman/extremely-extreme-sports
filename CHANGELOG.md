@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Walking update
+
+- You can now continue racing after crashing
+- Less friction when turning
+- Leaderboard updates before the end of the race
+
 ## Infinity update
 
 - Respawning when spectating (parachuting back on track)
