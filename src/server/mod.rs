@@ -58,13 +58,13 @@ impl simple_net::Model for Model {
     type Message = Message;
     type Event = Event;
     const TICKS_PER_SECOND: f32 = TICKS_PER_SECOND;
-    fn new_player(&mut self, events: &mut Vec<Event>) -> Self::PlayerId {
+    fn new_player(&mut self, _events: &mut Vec<Event>) -> Self::PlayerId {
         let player_id = self.shared.next_id;
         self.shared.next_id += 1;
         player_id
     }
 
-    fn drop_player(&mut self, events: &mut Vec<Event>, player_id: &Self::PlayerId) {
+    fn drop_player(&mut self, _events: &mut Vec<Event>, player_id: &Self::PlayerId) {
         if let Some(player) = self.shared.players.remove(&player_id) {
             discord::send_activity(&format!(
                 "{} left the server :woman_tipping_hand:",
@@ -84,7 +84,7 @@ impl simple_net::Model for Model {
             Message::Disconnect => {
                 self.drop_player(events, &player_id);
             }
-            Message::UpdatePlayer(mut player) => {
+            Message::UpdatePlayer(player) => {
                 if player.id != player_id {
                     return;
                 }
@@ -145,7 +145,7 @@ impl simple_net::Model for Model {
         }
     }
 
-    fn tick(&mut self, events: &mut Vec<Event>) {
+    fn tick(&mut self, _events: &mut Vec<Event>) {
         let delta_time = 1.0 / TICKS_PER_SECOND;
         self.shared.tick += 1;
         if let Some(position) = &mut self.shared.avalanche_position {

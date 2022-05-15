@@ -94,7 +94,7 @@ fn main() {
                 {
                     let geng = geng.clone();
                     move |assets| {
-                        let mut assets = assets.expect("Failed to load assets");
+                        let assets = assets.expect("Failed to load assets");
                         client::run(&geng, &Rc::new(assets), player_id, &opt, model)
                     }
                 },

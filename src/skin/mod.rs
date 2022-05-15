@@ -179,7 +179,6 @@ struct State {
 }
 
 pub struct Renderer {
-    geng: Geng,
     assets: Rc<Assets>,
     config: Config,
     quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
@@ -197,7 +196,6 @@ pub struct DrawInstance {
 impl Renderer {
     pub fn new(geng: &Geng, config: &Config, assets: &Rc<Assets>) -> Self {
         Self {
-            geng: geng.clone(),
             assets: assets.clone(),
             config: config.clone(),
             quad_geometry: ugli::VertexBuffer::new_static(

@@ -177,7 +177,6 @@ impl Lobby {
                     }),
                     Some(self.config.clone()),
                     self.model.clone(),
-                    false,
                 ))));
             }
             UiMessage::Customize => {
@@ -191,7 +190,6 @@ impl Lobby {
                     None,
                     None,
                     self.model.clone(),
-                    true,
                 ))));
             }
             UiMessage::JoinDiscord => {
@@ -274,8 +272,6 @@ impl Lobby {
                     ));
                     x += size;
                 }
-                x = initial_x;
-                y -= size;
                 result.push(ui::Button::new(
                     "delete",
                     vec2(initial_x + 5.0 * size, initial_y + 2.0 * size),
@@ -321,14 +317,13 @@ impl Lobby {
                 result
             }
             State::Leaderboard => {
-                let mut result = vec![ui::Button::new(
+                vec![ui::Button::new(
                     "back",
                     vec2(0.0, -0.35),
                     0.15,
                     0.5,
                     UiMessage::Back,
-                )];
-                result
+                )]
             }
             State::Main => {
                 let size = 0.1;
@@ -402,7 +397,7 @@ impl geng::State for Lobby {
                     }
                     let mut y = 1.0;
                     let highlight = Color::rgb(0.5, 0.5, 1.0);
-                    for (index, (name, score)) in rows.iter().enumerate() {
+                    for (index, (name, _score)) in rows.iter().enumerate() {
                         if index == 10 {
                             y -= 0.1;
                         }
@@ -425,7 +420,7 @@ impl geng::State for Lobby {
                         y -= 0.1;
                     }
                     let mut y = 1.0;
-                    for (index, (name, score)) in rows.iter().enumerate() {
+                    for (index, (name, _score)) in rows.iter().enumerate() {
                         if index == 10 {
                             y -= 0.1;
                         }
@@ -521,7 +516,7 @@ impl geng::State for Lobby {
             .draw(framebuffer, &self.camera, self.buttons());
     }
 
-    fn update(&mut self, delta_time: f64) {
+    fn update(&mut self, _delta_time: f64) {
         self.model.update();
     }
 

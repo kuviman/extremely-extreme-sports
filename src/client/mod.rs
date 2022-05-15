@@ -15,15 +15,7 @@ pub fn run(
     model: simple_net::Remote<Model>,
 ) -> Box<dyn geng::State> {
     if opt.spectator {
-        Box::new(Game::new(
-            &geng,
-            assets,
-            player_id,
-            None,
-            None,
-            model,
-            opt.auto_sound,
-        ))
+        Box::new(Game::new(&geng, assets, player_id, None, None, model))
     } else {
         Box::new(Lobby::new(&geng, assets, player_id, model))
     }

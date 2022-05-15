@@ -18,15 +18,10 @@ impl Player {
                     .clamp_len(..=config.crash_deceleration * delta_time);
             }
             _ => {
-                if true {
-                    let target_rotation =
-                        (self.input.x * config.rotation_limit).clamp_abs(config.rotation_limit);
-                    self.rotation += (target_rotation - self.rotation)
-                        .clamp_abs(config.rotation_speed * delta_time);
-                } else {
-                    // TODO
-                    self.rotation += self.input.x * config.rotation_speed * delta_time;
-                }
+                let target_rotation =
+                    (self.input.x * config.rotation_limit).clamp_abs(config.rotation_limit);
+                self.rotation +=
+                    (target_rotation - self.rotation).clamp_abs(config.rotation_speed * delta_time);
                 self.velocity.y += (-config.max_speed - self.velocity.y)
                     .clamp_abs(config.downhill_acceleration * delta_time);
                 let normal = vec2(1.0, 0.0).rotate(self.rotation);
@@ -34,9 +29,6 @@ impl Player {
                 self.ride_volume = force.abs() / 10.0;
                 self.velocity += normal * force * delta_time;
                 self.velocity = self.velocity.clamp_len(..=config.max_speed);
-                // self.ski_velocity = self.velocity;
-                // self.ski_rotation = self.rotation;
-                // self.crash_position = self.position;
             }
         }
         self.position += self.velocity * delta_time;

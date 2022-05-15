@@ -100,7 +100,6 @@ pub struct Assets {
     pub boom_sound: geng::Sound,
     pub avalanche_sound: geng::Sound,
     pub spawn_sound: geng::Sound,
-    // #[asset(path = "music.mp3")]
     #[asset(path = "LD-50.mp3")]
     pub music: geng::Sound,
     #[asset(load_with = "async { Ok::<_, anyhow::Error>(HashMap::new()) }")]
@@ -208,22 +207,6 @@ async fn load_obstacles(
         result.push(geng::LoadAsset::load(geng, &base_path.join(t)).await?);
     }
     Ok(result)
-}
-
-async fn load_textures(
-    geng: &Geng,
-    base_path: &std::path::Path,
-) -> anyhow::Result<HashMap<String, Texture>> {
-    let json = <String as geng::LoadAsset>::load(geng, &base_path.join("textures.json")).await?;
-    let list: Vec<String> = serde_json::from_str(&json)?;
-    let result = future::join_all(
-        list.iter()
-            .map(|path| geng::LoadAsset::load(geng, &base_path.join(path))),
-    )
-    .await
-    .into_iter()
-    .collect::<Result<Vec<_>, _>>()?;
-    Ok(list.into_iter().zip(result).collect())
 }
 
 #[derive(geng::Assets, Deserialize)]
