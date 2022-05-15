@@ -29,6 +29,34 @@ pub struct Opt {
     auto_sound: bool,
 }
 
+struct LoadingScreen {
+    geng: Geng,
+}
+
+impl LoadingScreen {
+    fn new(geng: &Geng) -> Self {
+        Self { geng: geng.clone() }
+    }
+}
+
+impl geng::ProgressScreen for LoadingScreen {}
+
+impl geng::State for LoadingScreen {
+    fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
+        let framebuffer_size = framebuffer.size();
+        ugli::clear(framebuffer, Some(Color::WHITE), None);
+        self.geng.default_font().draw(
+            framebuffer,
+            &geng::PixelPerfectCamera,
+            "Loading assets...",
+            framebuffer_size.map(|x| x as f32) / 2.0,
+            geng::TextAlign::CENTER,
+            40.0,
+            Color::BLACK,
+        );
+    }
+}
+
 fn main() {
     // logger::init().unwrap();
     let mut opt: Opt = program_args::parse();
@@ -50,7 +78,7 @@ fn main() {
         move |geng: &Geng, player_id, model| {
             geng::LoadingScreen::new(
                 &geng,
-                geng::EmptyLoadingScreen,
+                LoadingScreen::new(geng),
                 <Assets as geng::LoadAsset>::load(&geng, &static_path()).then({
                     let geng = geng.clone();
                     move |assets| async move {
