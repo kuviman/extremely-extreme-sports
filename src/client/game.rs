@@ -688,8 +688,8 @@ impl geng::State for Game {
                             player.update_walk(delta_time);
                             player.position.y = 0.0;
                             player.position.x = player.position.x.clamp(
-                                shape_point.safe_left + player.radius,
-                                shape_point.safe_right - player.radius,
+                                -model.config.track.safe_middle * 2.0 + player.radius,
+                                model.config.track.safe_middle * 2.0 - player.radius,
                             );
                         }
                         PlayerState::Walk => {
