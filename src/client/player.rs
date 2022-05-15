@@ -2,9 +2,9 @@ use super::*;
 
 impl Player {
     pub fn update_walk(&mut self, delta_time: f32) {
-        let target_speed = self.input * Self::MAX_WALK_SPEED;
-        self.velocity.x +=
-            (target_speed - self.velocity.x).clamp_abs(Self::WALK_ACCELERATION * delta_time);
+        let target_speed = self.input.clamp_len(0.0..=1.0) * Self::MAX_WALK_SPEED;
+        self.velocity +=
+            (target_speed - self.velocity).clamp_len(..=Self::WALK_ACCELERATION * delta_time);
         self.position += self.velocity * delta_time;
         self.ride_volume = 0.0;
     }
@@ -12,12 +12,12 @@ impl Player {
         if !self.crashed {
             if true {
                 let target_rotation =
-                    (self.input * Self::ROTATION_LIMIT).clamp_abs(Self::ROTATION_LIMIT);
+                    (self.input.x * Self::ROTATION_LIMIT).clamp_abs(Self::ROTATION_LIMIT);
                 self.rotation +=
                     (target_rotation - self.rotation).clamp_abs(Self::ROTATION_SPEED * delta_time);
             } else {
                 // TODO
-                self.rotation += self.input * Self::ROTATION_SPEED * delta_time;
+                self.rotation += self.input.x * Self::ROTATION_SPEED * delta_time;
             }
             self.velocity.y += (-Self::MAX_SPEED - self.velocity.y)
                 .clamp_abs(Self::DOWNHILL_ACCELERATION * delta_time);

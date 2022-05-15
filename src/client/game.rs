@@ -148,7 +148,7 @@ impl Game {
                         ),
                         radius: 0.3,
                         rotation: 0.0,
-                        input: 0.0,
+                        input: Vec2::ZERO,
                         velocity: Vec2::ZERO,
                         crashed: false,
                         ski_velocity: Vec2::ZERO,
@@ -299,11 +299,15 @@ impl Game {
                     position: player.position,
                     rotation: player.rotation,
                     velocity: player.velocity,
-                    crashed: player.crashed,
-                    crash_timer: player.crash_timer,
+                    crashed: player.crashed && player.crash_timer < 2.0,
+                    crash_timer: if player.crash_timer < 2.0 {
+                        player.crash_timer
+                    } else {
+                        0.0
+                    },
                     ski_velocity: player.ski_velocity,
                     ski_rotation: player.ski_rotation,
-                    is_riding: player.is_riding,
+                    is_riding: player.is_riding && player.crash_timer < 2.0,
                     crash_position: player.crash_position,
                     parachute: player.parachute.map(|x| x / Player::PARACHUTE_TIME),
                 },
@@ -390,6 +394,10 @@ impl Game {
                 my_player.position = vec2(model.track.at(y).middle(), y);
                 my_player.start_y = my_player.position.y;
                 my_player.parachute = Some(Player::PARACHUTE_TIME);
+            }
+            if my_player.crash_timer > 2.0 {
+                my_player.crashed = false;
+                my_player.crash_timer = 0.0;
             }
         }
     }
@@ -528,22 +536,32 @@ impl geng::State for Game {
                     }
                 }
 
-                me.input = 0.0;
+                me.input = Vec2::ZERO;
 
                 if let Some(pos) = self.touch_control {
-                    me.input += ((pos.x - self.framebuffer_size.x as f32 / 2.0)
+                    me.input.x += ((pos.x - self.framebuffer_size.x as f32 / 2.0)
                         / (self.framebuffer_size.x as f32 / 4.0))
                         .clamp(-1.0, 1.0);
                 } else {
                     if self.geng.window().is_key_pressed(geng::Key::A)
                         || self.geng.window().is_key_pressed(geng::Key::Left)
                     {
-                        me.input -= 1.0;
+                        me.input.x -= 1.0;
                     }
                     if self.geng.window().is_key_pressed(geng::Key::D)
                         || self.geng.window().is_key_pressed(geng::Key::Right)
                     {
-                        me.input += 1.0;
+                        me.input.x += 1.0;
+                    }
+                    if self.geng.window().is_key_pressed(geng::Key::W)
+                        || self.geng.window().is_key_pressed(geng::Key::Up)
+                    {
+                        me.input.y += 1.0;
+                    }
+                    if self.geng.window().is_key_pressed(geng::Key::S)
+                        || self.geng.window().is_key_pressed(geng::Key::Down)
+                    {
+                        me.input.y -= 1.0;
                     }
                     // TODO
                     if false && !self.geng.window().is_key_pressed(geng::Key::Space) {
@@ -654,7 +672,10 @@ impl geng::State for Game {
                             me.is_riding = true;
                         }
                     }
-                    if me.crash_timer > 2.0 {
+                    if me.crash_timer > 2.0
+                        && (model.avalanche_position.is_none()
+                            || me.position.y > model.avalanche_position.unwrap())
+                    {
                         self.model.send(Message::Score(
                             ((me.start_y - me.position.y) * 100.0) as i32,
                         ));
@@ -671,9 +692,28 @@ impl geng::State for Game {
                         }
                     } else if !player.is_riding {
                         player.update_walk(delta_time);
+                        player.position.y = 0.0;
                         player.position.x = player.position.x.clamp(
                             shape_point.safe_left + player.radius,
                             shape_point.safe_right - player.radius,
+                        );
+                    } else if player.crash_timer > 2.0 {
+                        player.update_walk(delta_time);
+                        for obstacle in model
+                            .track
+                            .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
+                        {
+                            let delta_pos = player.position - obstacle.position;
+                            let peneration = player.radius + obstacle.radius - delta_pos.len();
+                            if peneration > 0.0 {
+                                let normal = delta_pos.normalize_or_zero();
+                                player.position += normal * peneration;
+                                player.velocity -= normal * Vec2::dot(player.velocity, normal);
+                            }
+                        }
+                        player.position.x = player.position.x.clamp(
+                            shape_point.left + player.radius,
+                            shape_point.right - player.radius,
                         );
                     } else {
                         player.update_riding(delta_time);
@@ -721,7 +761,7 @@ impl geng::State for Game {
                     self.next_particle += 1.0 / 100.0;
                     let mut particles = Vec::new();
                     for player in &self.interpolated_players {
-                        if player.is_riding {
+                        if player.is_riding && player.crash_timer < 2.0 {
                             particles.push(Particle {
                                 i_pos: player.position,
                                 // i_vel: vec2(

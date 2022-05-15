@@ -65,7 +65,7 @@ pub struct Player {
     pub config: skin::Config,
     pub radius: f32,
     pub rotation: f32,
-    pub input: f32,
+    pub input: Vec2<f32>,
     pub velocity: Vec2<f32>,
     pub crashed: bool,
     pub crash_timer: f32,
