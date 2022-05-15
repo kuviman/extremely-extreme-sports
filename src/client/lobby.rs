@@ -32,7 +32,7 @@ pub struct Lobby {
     framebuffer_size: Vec2<usize>,
     assets: Rc<Assets>,
     player_id: Id,
-    model: Option<simple_net::Remote<Model>>,
+    model: simple_net::Remote<Model>,
     transition: Option<geng::Transition>,
     name: String,
     camera: geng::Camera2d,
@@ -103,7 +103,7 @@ impl Lobby {
             },
             assets: assets.clone(),
             player_id,
-            model: Some(model),
+            model,
             transition: None,
             name: match autosave::load("player_name.txt") {
                 Some(name) => name,
@@ -176,7 +176,7 @@ impl Lobby {
                         self.name.clone()
                     }),
                     Some(self.config.clone()),
-                    self.model.take().unwrap(),
+                    self.model.clone(),
                     false,
                 ))));
             }
@@ -190,7 +190,7 @@ impl Lobby {
                     self.player_id,
                     None,
                     None,
-                    self.model.take().unwrap(),
+                    self.model.clone(),
                     true,
                 ))));
             }
@@ -384,7 +384,8 @@ impl geng::State for Lobby {
                     0.5,
                     Color::GRAY,
                 );
-                if let Some(model) = &self.model {
+                {
+                    let model = &self.model;
                     let mut rows = Vec::new();
                     let model = model.get();
                     for (name, score) in &model.highscores {
@@ -473,6 +474,7 @@ impl geng::State for Lobby {
                 self.skin_renderer.draw(
                     framebuffer,
                     &self.camera,
+                    &self.model.get().config.player,
                     &skin::DrawInstance {
                         position: vec2(-0.5, 0.0),
                         rotation: 0.0,
@@ -520,9 +522,7 @@ impl geng::State for Lobby {
     }
 
     fn update(&mut self, delta_time: f64) {
-        if let Some(model) = &mut self.model {
-            model.update();
-        }
+        self.model.update();
     }
 
     fn handle_event(&mut self, event: geng::Event) {

@@ -15,9 +15,23 @@ pub struct AvalancheConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct PlayerConfig {
+    pub rotation_speed: f32,
+    pub rotation_limit: f32,
+    pub max_speed: f32,
+    pub max_walk_speed: f32,
+    pub friction: f32,
+    pub downhill_acceleration: f32,
+    pub walk_acceleration: f32,
+    pub crash_deceleration: f32,
+    pub parachute_time: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Config {
     pub avalanche: AvalancheConfig,
     pub track: TrackConfig,
+    pub player: PlayerConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
@@ -89,16 +103,6 @@ pub struct Player {
 }
 
 impl Player {
-    pub const ROTATION_SPEED: f32 = 2.0 * f32::PI;
-    pub const ROTATION_LIMIT: f32 = f32::PI / 3.0;
-    pub const MAX_SPEED: f32 = 10.0;
-    pub const MAX_WALK_SPEED: f32 = 3.0;
-    pub const FRICTION: f32 = 3.0;
-    pub const DOWNHILL_ACCELERATION: f32 = 5.0;
-    pub const WALK_ACCELERATION: f32 = 20.0;
-    pub const CRASH_DECELERATION: f32 = 10.0;
-    pub const PARACHUTE_TIME: f32 = 2.0;
-
     pub fn score(&self) -> i32 {
         ((self.start_y - self.position.y) * 100.0) as i32
     }

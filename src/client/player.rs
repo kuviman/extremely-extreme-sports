@@ -1,39 +1,39 @@
 use super::*;
 
 impl Player {
-    pub fn update_walk(&mut self, delta_time: f32) {
-        let target_speed = self.input.clamp_len(0.0..=1.0) * Self::MAX_WALK_SPEED;
+    pub fn update_walk(&mut self, config: &PlayerConfig, delta_time: f32) {
+        let target_speed = self.input.clamp_len(0.0..=1.0) * config.max_walk_speed;
         self.velocity +=
-            (target_speed - self.velocity).clamp_len(..=Self::WALK_ACCELERATION * delta_time);
+            (target_speed - self.velocity).clamp_len(..=config.walk_acceleration * delta_time);
         self.position += self.velocity * delta_time;
         self.ride_volume = 0.0;
     }
-    pub fn update_riding(&mut self, delta_time: f32) {
+    pub fn update_riding(&mut self, config: &PlayerConfig, delta_time: f32) {
         match &mut self.state {
             PlayerState::Crash { timer, .. } => {
                 self.ride_volume = 0.0;
                 *timer += delta_time;
                 self.velocity -= self
                     .velocity
-                    .clamp_len(..=Self::CRASH_DECELERATION * delta_time);
+                    .clamp_len(..=config.crash_deceleration * delta_time);
             }
             _ => {
                 if true {
                     let target_rotation =
-                        (self.input.x * Self::ROTATION_LIMIT).clamp_abs(Self::ROTATION_LIMIT);
+                        (self.input.x * config.rotation_limit).clamp_abs(config.rotation_limit);
                     self.rotation += (target_rotation - self.rotation)
-                        .clamp_abs(Self::ROTATION_SPEED * delta_time);
+                        .clamp_abs(config.rotation_speed * delta_time);
                 } else {
                     // TODO
-                    self.rotation += self.input.x * Self::ROTATION_SPEED * delta_time;
+                    self.rotation += self.input.x * config.rotation_speed * delta_time;
                 }
-                self.velocity.y += (-Self::MAX_SPEED - self.velocity.y)
-                    .clamp_abs(Self::DOWNHILL_ACCELERATION * delta_time);
+                self.velocity.y += (-config.max_speed - self.velocity.y)
+                    .clamp_abs(config.downhill_acceleration * delta_time);
                 let normal = vec2(1.0, 0.0).rotate(self.rotation);
-                let force = -Vec2::dot(self.velocity, normal) * Self::FRICTION;
+                let force = -Vec2::dot(self.velocity, normal) * config.friction;
                 self.ride_volume = force.abs() / 10.0;
                 self.velocity += normal * force * delta_time;
-                self.velocity = self.velocity.clamp_len(..=Self::MAX_SPEED);
+                self.velocity = self.velocity.clamp_len(..=config.max_speed);
                 // self.ski_velocity = self.velocity;
                 // self.ski_rotation = self.rotation;
                 // self.crash_position = self.position;

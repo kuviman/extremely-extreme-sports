@@ -260,6 +260,7 @@ impl Renderer {
         &self,
         framebuffer: &mut ugli::Framebuffer,
         camera: &impl geng::AbstractCamera2d,
+        config: &PlayerConfig,
         player: &DrawInstance,
     ) {
         let draw_position = player.position
@@ -341,12 +342,12 @@ impl Renderer {
             )
             * Mat3::scale_uniform(1.0 / 64.0);
         let turn = if player.state == PlayerState::Ride {
-            player.rotation / Player::ROTATION_LIMIT
+            player.rotation / config.rotation_limit
         } else {
-            player.velocity.x / Player::MAX_WALK_SPEED
+            player.velocity.x / config.max_walk_speed
         };
         let speed = if player.state != PlayerState::SpawnWalk && player.state != PlayerState::Walk {
-            (player.velocity.len() / Player::MAX_SPEED).min(1.0)
+            (player.velocity.len() / config.max_speed).min(1.0)
         } else {
             0.0
         };

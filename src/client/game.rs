@@ -289,6 +289,7 @@ impl Game {
             renderer.draw(
                 framebuffer,
                 &self.camera,
+                &self.model.get().config.player,
                 &skin::DrawInstance {
                     position: player.position,
                     rotation: player.rotation,
@@ -310,7 +311,7 @@ impl Game {
                                 PlayerState::Parachute { timer } => timer,
                                 _ => 0.0,
                             } * 10.0
-                                / Player::PARACHUTE_TIME,
+                                / self.model.get().config.player.parachute_time,
                         ),
                 ) * Mat3::scale_uniform(0.3),
                 Color::WHITE,
@@ -380,11 +381,11 @@ impl Game {
             if model.avalanche_position.is_some() && my_player.state == PlayerState::SpawnWalk {
                 let y = model.avalanche_position.unwrap()
                     - model.config.avalanche.start
-                    - model.avalanche_speed * Player::PARACHUTE_TIME;
+                    - model.avalanche_speed * model.config.player.parachute_time;
                 my_player.position = vec2(model.track.at(y).middle(), y);
                 my_player.start_y = my_player.position.y;
                 my_player.state = PlayerState::Parachute {
-                    timer: Player::PARACHUTE_TIME,
+                    timer: model.config.player.parachute_time,
                 };
             }
             if let PlayerState::Walk = my_player.state {
@@ -685,7 +686,7 @@ impl geng::State for Game {
                             }
                         }
                         PlayerState::SpawnWalk => {
-                            player.update_walk(delta_time);
+                            player.update_walk(&model.config.player, delta_time);
                             player.position.y = 0.0;
                             player.position.x = player.position.x.clamp(
                                 -model.config.track.safe_middle * 2.0 + player.radius,
@@ -693,7 +694,7 @@ impl geng::State for Game {
                             );
                         }
                         PlayerState::Walk => {
-                            player.update_walk(delta_time);
+                            player.update_walk(&model.config.player, delta_time);
                             for obstacle in model
                                 .track
                                 .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
@@ -712,7 +713,7 @@ impl geng::State for Game {
                             );
                         }
                         PlayerState::Ride | PlayerState::Crash { .. } => {
-                            player.update_riding(delta_time);
+                            player.update_riding(&model.config.player, delta_time);
                             for obstacle in model
                                 .track
                                 .query_obstacles(player.position.y + 10.0, player.position.y - 10.0)
@@ -802,7 +803,7 @@ impl geng::State for Game {
                                     + player.velocity,
                                 i_time: self.time,
                                 i_size: 0.4,
-                                i_opacity: 0.5 * force / Player::MAX_SPEED,
+                                i_opacity: 0.5 * force / model.config.player.max_speed,
                             });
                         }
                     }
@@ -1275,7 +1276,7 @@ impl geng::State for Game {
                                 PlayerState::Parachute { timer } => timer,
                                 _ => 0.0,
                             } * 10.0
-                                / Player::PARACHUTE_TIME,
+                                / model.config.player.parachute_time,
                         ),
                     0.5,
                     &player.name,
@@ -1435,7 +1436,7 @@ impl geng::State for Game {
                 &target_player.state
             {
                 self.ride_sound_effect.set_volume(
-                    (target_player.velocity.len() / Player::MAX_SPEED * 0.05
+                    (target_player.velocity.len() / model.config.player.max_speed * 0.05
                         + target_player.ride_volume.min(1.0) * 0.1) as f64
                         * self.volume,
                 );
