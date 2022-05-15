@@ -102,6 +102,35 @@ impl simple_net::Model for Model {
                     if score > last_score {
                         self.shared.scores.insert(player.name.clone(), score);
                     }
+
+                    let current_highest_score =
+                        self.shared.highscores.values().max().copied().unwrap_or(0);
+
+                    if score
+                        > self
+                            .shared
+                            .highscores
+                            .get(&player.name)
+                            .copied()
+                            .unwrap_or(0)
+                    {
+                        discord::send_activity(&format!(
+                            "New personal best of {} by {} :thumbsup:",
+                            score, player.name
+                        ));
+                        self.shared.highscores.insert(player.name.clone(), score);
+                        serde_json::to_writer_pretty(
+                            std::fs::File::create("highscores.json").unwrap(),
+                            &self.shared.highscores,
+                        )
+                        .unwrap();
+                    }
+                    if score > current_highest_score {
+                        discord::send_activity(&format!(
+                            "New highscore of {} by {} <:extremeBoom:963122644373368832>",
+                            score, player.name,
+                        ));
+                    }
                 }
             }
             Message::StartTheRace => {
@@ -123,6 +152,13 @@ impl simple_net::Model for Model {
             self.shared.avalanche_speed = (self.shared.avalanche_speed
                 + delta_time * self.shared.config.avalanche.acceleration)
                 .min(self.shared.config.avalanche.max_speed);
+            for player in &self.shared.players {
+                let last_score = self.shared.scores.get(&player.name).copied().unwrap_or(0);
+                let score = ((player.start_y - player.position.y) * 100.0) as i32;
+                if score > last_score {
+                    self.shared.scores.insert(player.name.clone(), score);
+                }
+            }
             *position -= self.shared.avalanche_speed * delta_time;
             if *position < self.shared.config.avalanche.start - 5.0 {
                 if self.shared.players.iter().all(|player| {
@@ -155,27 +191,6 @@ impl simple_net::Model for Model {
                             }
                             text.push_str("\n<:extremeBoom:963122644373368832>");
                             discord::send_activity(&text);
-
-                            let current_highest_score =
-                                self.shared.highscores.values().max().copied().unwrap_or(0);
-                            for (name, score) in &self.shared.scores {
-                                let score = *score;
-                                if score > current_highest_score {
-                                    discord::send_activity(&format!(
-                                    "New highscore of {} by {} <:extremeBoom:963122644373368832>",
-                                    score, name,
-                                ));
-                                }
-                                if self.shared.highscores.get(name).copied().unwrap_or(0) < score {
-                                    self.shared.highscores.insert(name.clone(), score);
-                                }
-                            }
-                            serde_json::to_writer_pretty(
-                                std::fs::File::create("highscores.json").unwrap(),
-                                &self.shared.highscores,
-                            )
-                            .unwrap();
-
                             self.shared.scores.clear();
                         }
                     }
