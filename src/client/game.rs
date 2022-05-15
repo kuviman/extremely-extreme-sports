@@ -756,6 +756,7 @@ impl geng::State for Game {
                             );
                         }
                     }
+                    player.position.y = player.position.y.min(0.0);
                     if let Some(position) = model.avalanche_position {
                         if player.position.y > position {
                             if !matches!(
