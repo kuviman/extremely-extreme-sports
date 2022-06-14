@@ -3,10 +3,9 @@ use super::*;
 #[derive(Deref, DerefMut)]
 pub struct Texture(ugli::Texture);
 
-impl ugli::AsUniform for Texture {
-    type Uniform = ugli::Texture;
-    fn as_uniform(&self) -> &Self::Uniform {
-        &self.0
+impl ugli::Uniform for Texture {
+    fn apply(&self, gl: &ugli::raw::Context, info: &ugli::UniformInfo) {
+        ugli::Texture::apply(self, gl, info)
     }
 }
 
