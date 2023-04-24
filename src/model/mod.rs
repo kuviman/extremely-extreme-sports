@@ -29,6 +29,8 @@ pub struct PlayerConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Config {
+    pub invincibility_time: f32,
+    pub auto_continue: bool,
     pub enable_walk: bool,
     pub enable_parachute: bool,
     pub avalanche: AvalancheConfig,
@@ -73,7 +75,9 @@ pub const TICKS_PER_SECOND: f32 = 10.0;
 pub enum PlayerState {
     SpawnWalk,
     Walk,
-    Ride,
+    Ride {
+        timer: f32,
+    },
     Crash {
         timer: f32,
         ski_velocity: vec2<f32>,
@@ -83,6 +87,14 @@ pub enum PlayerState {
     Parachute {
         timer: f32,
     },
+}
+impl PlayerState {
+    pub fn can_crash(&self, config: &Config) -> bool {
+        match self {
+            PlayerState::Ride { timer } => *timer > config.invincibility_time,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]

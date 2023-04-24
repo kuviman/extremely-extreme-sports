@@ -469,7 +469,7 @@ impl geng::State for Lobby {
                 self.skin_renderer.draw(
                     framebuffer,
                     &self.camera,
-                    &self.model.get().config.player,
+                    &self.model.get().config,
                     &skin::DrawInstance {
                         position: vec2(-0.5, 0.0),
                         rotation: 0.0,

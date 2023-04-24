@@ -258,19 +258,27 @@ impl Renderer {
         &self,
         framebuffer: &mut ugli::Framebuffer,
         camera: &impl geng::AbstractCamera2d,
-        config: &PlayerConfig,
+        config: &model::Config,
         player: &DrawInstance,
     ) {
         let draw_position = player.position
             + match player.state {
-                PlayerState::Ride | PlayerState::Crash { .. } => vec2(0.0, 0.0),
+                PlayerState::Ride { .. } | PlayerState::Crash { .. } => vec2(0.0, 0.0),
                 PlayerState::Walk | PlayerState::SpawnWalk => vec2(
                     0.0,
                     player.velocity.len().min(0.1) * (self.time * 15.0).sin().abs(),
                 ),
-                PlayerState::Parachute { timer } => vec2(0.0, 10.0 * timer / config.parachute_time),
+                PlayerState::Parachute { timer } => {
+                    vec2(0.0, 10.0 * timer / config.player.parachute_time)
+                }
             };
+        let opacity = match player.state {
+            PlayerState::Ride { timer } if timer < config.invincibility_time => 0.5,
+            _ => 1.0,
+        };
         let mut draw_texture = |texture: &ugli::Texture, transform: mat3<f32>, color: Rgba<f32>| {
+            let mut color = color;
+            color.a *= opacity;
             let framebuffer_size = framebuffer.size();
             ugli::draw(
                 framebuffer,
@@ -285,7 +293,10 @@ impl Renderer {
                     },
                     camera.uniforms(framebuffer_size.map(|x| x as f32)),
                 ),
-                &ugli::DrawParameters { ..default() },
+                &ugli::DrawParameters {
+                    blend_mode: Some(ugli::BlendMode::straight_alpha()),
+                    ..default()
+                },
             );
         };
 
@@ -297,7 +308,7 @@ impl Renderer {
                 .unwrap_or_else(|| &self.assets.textures[name])
         });
         if let Some(equipment) = equipment {
-            if let PlayerState::Ride | PlayerState::Parachute { .. } = player.state {
+            if let PlayerState::Ride { .. } | PlayerState::Parachute { .. } = player.state {
                 draw_texture(
                     equipment,
                     mat3::translate(draw_position) * mat3::rotate(player.rotation),
@@ -338,13 +349,13 @@ impl Renderer {
                     .min(f32::PI / 2.0),
             )
             * mat3::scale_uniform(1.0 / 64.0);
-        let turn = if player.state == PlayerState::Ride {
-            player.rotation / config.rotation_limit
+        let turn = if let PlayerState::Ride { .. } = player.state {
+            player.rotation / config.player.rotation_limit
         } else {
-            player.velocity.x / config.max_walk_speed
+            player.velocity.x / config.player.max_walk_speed
         };
         let speed = if player.state != PlayerState::SpawnWalk && player.state != PlayerState::Walk {
-            (player.velocity.len() / config.max_speed).min(1.0)
+            (player.velocity.len() / config.player.max_speed).min(1.0)
         } else {
             0.0
         };

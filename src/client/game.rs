@@ -283,7 +283,7 @@ impl Game {
             renderer.draw(
                 framebuffer,
                 &self.camera,
-                &self.model.get().config.player,
+                &self.model.get().config,
                 &skin::DrawInstance {
                     position: player.position,
                     rotation: player.rotation,
@@ -386,7 +386,7 @@ impl Game {
                 };
             }
             if let PlayerState::Walk = my_player.state {
-                my_player.state = PlayerState::Ride;
+                my_player.state = PlayerState::Ride { timer: 100.0 };
             }
         }
     }
@@ -642,7 +642,7 @@ impl geng::State for Game {
                         let mut sfx = self.assets.boom_sound.effect();
                         sfx.set_volume(self.volume);
                         sfx.play();
-                        me.state = PlayerState::Ride;
+                        me.state = PlayerState::Ride { timer: 100.0 };
                     }
                     if let PlayerState::Crash { timer, .. } = me.state {
                         if timer > 2.0 {
@@ -654,6 +654,8 @@ impl geng::State for Game {
                                     ((me.start_y - me.position.y) * 100.0) as i32,
                                 ));
                                 me.respawn();
+                            } else if model.config.auto_continue {
+                                me.state = PlayerState::Ride { timer: 0.0 };
                             } else if model.config.enable_walk {
                                 me.state = PlayerState::Walk;
                             }
@@ -666,7 +668,7 @@ impl geng::State for Game {
                         PlayerState::Parachute { timer } => {
                             *timer -= delta_time;
                             if *timer < 0.0 {
-                                player.state = PlayerState::Ride;
+                                player.state = PlayerState::Ride { timer: 100.0 };
                             }
                         }
                         PlayerState::SpawnWalk => {
@@ -696,7 +698,10 @@ impl geng::State for Game {
                                 shape_point.right - player.radius,
                             );
                         }
-                        PlayerState::Ride | PlayerState::Crash { .. } => {
+                        PlayerState::Ride { .. } | PlayerState::Crash { .. } => {
+                            if let PlayerState::Ride { timer } = &mut player.state {
+                                *timer += delta_time;
+                            }
                             player.update_riding(&model.config.player, delta_time);
                             for obstacle in model
                                 .track
@@ -709,7 +714,7 @@ impl geng::State for Game {
                                     player.position += normal * peneration;
                                     player.velocity -= normal * vec2::dot(player.velocity, normal);
                                     // TODO: copypasta
-                                    if !matches!(player.state, PlayerState::Crash { .. }) {
+                                    if player.state.can_crash(&model.config) {
                                         player.state = PlayerState::Crash {
                                             timer: 0.0,
                                             ski_velocity: player.velocity,
@@ -724,7 +729,7 @@ impl geng::State for Game {
                                 || player.position.x > shape_point.right - player.radius
                             {
                                 // TODO: copypasta
-                                if !matches!(player.state, PlayerState::Crash { .. }) {
+                                if player.state.can_crash(&model.config) {
                                     player.state = PlayerState::Crash {
                                         timer: 0.0,
                                         ski_velocity: player.velocity,
@@ -763,7 +768,7 @@ impl geng::State for Game {
                     self.next_particle += 1.0 / 100.0;
                     let mut particles = Vec::new();
                     for player in &self.interpolated_players {
-                        if let PlayerState::Ride | PlayerState::Crash { .. } = player.state {
+                        if let PlayerState::Ride { .. } | PlayerState::Crash { .. } = player.state {
                             particles.push(Particle {
                                 i_pos: player.position,
                                 i_vel: vec2::ZERO,
@@ -1344,7 +1349,7 @@ impl geng::State for Game {
             );
         }
         if let Some(target_player) = target_player {
-            if let PlayerState::Ride | PlayerState::Crash { .. } | PlayerState::Walk =
+            if let PlayerState::Ride { .. } | PlayerState::Crash { .. } | PlayerState::Walk =
                 &target_player.state
             {
                 self.ride_sound_effect.set_volume(

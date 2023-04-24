@@ -1,4 +1,6 @@
 {
+    "invincibility_time": 3.0,
+    "auto_continue": true,
     "enable_walk": false,
     "enable_parachute": false,
     "avalanche": {
