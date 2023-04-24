@@ -1,4 +1,6 @@
 {
+    "enable_walk": false,
+    "enable_parachute": false,
     "avalanche": {
         "min_speed": 10.0,
         "max_speed": 20.0,

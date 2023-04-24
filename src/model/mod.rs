@@ -29,6 +29,8 @@ pub struct PlayerConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Config {
+    pub enable_walk: bool,
+    pub enable_parachute: bool,
     pub avalanche: AvalancheConfig,
     pub track: TrackConfig,
     pub player: PlayerConfig,

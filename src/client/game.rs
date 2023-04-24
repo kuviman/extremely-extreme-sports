@@ -372,7 +372,10 @@ impl Game {
                 self.model.send(Message::StartTheRace);
             }
             let model = self.model.get();
-            if model.avalanche_position.is_some() && my_player.state == PlayerState::SpawnWalk {
+            if model.avalanche_position.is_some()
+                && my_player.state == PlayerState::SpawnWalk
+                && model.config.enable_parachute
+            {
                 let y = model.avalanche_position.unwrap()
                     - model.config.avalanche.start
                     - model.avalanche_speed * model.config.player.parachute_time;
@@ -651,9 +654,8 @@ impl geng::State for Game {
                                     ((me.start_y - me.position.y) * 100.0) as i32,
                                 ));
                                 me.respawn();
-                            } else {
-                                // TODO: make walk more fun?
-                                // me.state = PlayerState::Walk;
+                            } else if model.config.enable_walk {
+                                me.state = PlayerState::Walk;
                             }
                         }
                     }
