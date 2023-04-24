@@ -149,8 +149,11 @@ impl simple_net::Model for Model {
         let delta_time = 1.0 / TICKS_PER_SECOND;
         self.shared.tick += 1;
         if let Some(position) = &mut self.shared.avalanche_position {
+            let avalanche_acceleration = (self.shared.config.avalanche.max_speed
+                - self.shared.config.avalanche.min_speed)
+                / self.shared.config.avalanche.max_speed_time;
             self.shared.avalanche_speed = (self.shared.avalanche_speed
-                + delta_time * self.shared.config.avalanche.acceleration)
+                + delta_time * avalanche_acceleration)
                 .min(self.shared.config.avalanche.max_speed);
             for player in &self.shared.players {
                 let last_score = self.shared.scores.get(&player.name).copied().unwrap_or(0);

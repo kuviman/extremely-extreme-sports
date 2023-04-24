@@ -4,7 +4,7 @@
     "avalanche": {
         "min_speed": 10.0,
         "max_speed": 20.0,
-        "acceleration": 0.06666,
+        "max_speed_time": 60.0,
         "start": 100.0
     },
     "track": {

@@ -10,7 +10,7 @@ pub type Id = i64;
 pub struct AvalancheConfig {
     pub min_speed: f32,
     pub max_speed: f32,
-    pub acceleration: f32,
+    pub max_speed_time: f32,
     pub start: f32,
 }
 
