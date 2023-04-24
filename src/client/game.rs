@@ -644,14 +644,16 @@ impl geng::State for Game {
                     if let PlayerState::Crash { timer, .. } = me.state {
                         if timer > 2.0 {
                             if model.avalanche_position.is_none()
-                                || me.position.y > model.avalanche_position.unwrap()
+                                || me.position.y
+                                    > model.avalanche_position.unwrap() + self.camera.fov
                             {
                                 self.model.send(Message::Score(
                                     ((me.start_y - me.position.y) * 100.0) as i32,
                                 ));
                                 me.respawn();
                             } else {
-                                me.state = PlayerState::Walk;
+                                // TODO: make walk more fun?
+                                // me.state = PlayerState::Walk;
                             }
                         }
                     }
