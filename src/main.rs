@@ -61,7 +61,8 @@ impl geng::State for LoadingScreen {
 }
 
 fn main() {
-    // logger::init().unwrap();
+    logger::init();
+    geng::setup_panic_handler();
     let mut opt: Opt = cli::parse();
     if opt.connect.is_none() && opt.server.is_none() {
         if cfg!(target_arch = "wasm32") {
