@@ -649,15 +649,10 @@ impl geng::State for Game {
                             if model.avalanche_position.is_none()
                                 || me.position.y > model.avalanche_position.unwrap()
                             {
-                                if model.avalanche_position.is_none()
-                                    || me.position.y
-                                        > model.avalanche_position.unwrap() + self.camera.fov
-                                {
-                                    self.model.send(Message::Score(
-                                        ((me.start_y - me.position.y) * 100.0) as i32,
-                                    ));
-                                    me.respawn();
-                                }
+                                self.model.send(Message::Score(
+                                    ((me.start_y - me.position.y) * 100.0) as i32,
+                                ));
+                                me.respawn();
                             } else if model.config.auto_continue {
                                 me.state = PlayerState::Ride { timer: 0.0 };
                             } else if model.config.enable_walk {
