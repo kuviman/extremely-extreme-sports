@@ -635,12 +635,10 @@ impl geng::State for Game {
                         && model.avalanche_position.is_some()
                         && me.state == PlayerState::SpawnWalk
                     {
-                        for _ in 0..100 {
-                            self.explosion_time = Some(0.0);
-                            let mut sfx = self.assets.boom_sound.effect();
-                            sfx.set_volume(self.volume);
-                            sfx.play();
-                        }
+                        self.explosion_time = Some(0.0);
+                        let mut sfx = self.assets.boom_sound.effect();
+                        sfx.set_volume(self.volume);
+                        sfx.play();
                         me.state = PlayerState::Ride;
                     }
                     if let PlayerState::Crash { timer, .. } = me.state {
