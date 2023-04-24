@@ -42,7 +42,7 @@ impl Model {
         match std::env::var("CONFIG") {
             Ok(path) => serde_json::from_reader(std::fs::File::open(path).unwrap()).unwrap(),
             Err(_) => serde_json::from_reader(
-                std::fs::File::open(static_path().join("config.json")).unwrap(),
+                std::fs::File::open(assets_path().join("config.json")).unwrap(),
             )
             .unwrap(),
         }

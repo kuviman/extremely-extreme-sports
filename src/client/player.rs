@@ -25,7 +25,7 @@ impl Player {
                 self.velocity.y += (-config.max_speed - self.velocity.y)
                     .clamp_abs(config.downhill_acceleration * delta_time);
                 let normal = vec2(1.0, 0.0).rotate(self.rotation);
-                let force = -Vec2::dot(self.velocity, normal) * config.friction;
+                let force = -vec2::dot(self.velocity, normal) * config.friction;
                 self.ride_volume = force.abs() / 10.0;
                 self.velocity += normal * force * delta_time;
                 self.velocity = self.velocity.clamp_len(..=config.max_speed);
@@ -36,9 +36,9 @@ impl Player {
 
     pub fn respawn(&mut self) {
         *self = Player {
-            position: vec2(global_rng().gen_range(-10.0..=10.0), 0.0),
+            position: vec2(thread_rng().gen_range(-10.0..=10.0), 0.0),
             rotation: 0.0,
-            velocity: Vec2::ZERO,
+            velocity: vec2::ZERO,
             start_y: 0.0,
             state: PlayerState::SpawnWalk,
             seen_no_avalanche: false,

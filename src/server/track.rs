@@ -3,7 +3,7 @@ use super::*;
 pub struct TrackGen {
     config: TrackConfig,
     rng: Box<dyn RngCore + Send>,
-    last: Vec<Vec2<f32>>,
+    last: Vec<vec2<f32>>,
     last_len: [f32; 2],
     obstacle_options: Vec<(usize, ObstacleConfig)>,
 }
@@ -11,14 +11,14 @@ pub struct TrackGen {
 impl TrackGen {
     pub fn new(config: &TrackConfig) -> Self {
         let list: Vec<String> = serde_json::from_reader(
-            std::fs::File::open(static_path().join("obstacles.json")).unwrap(),
+            std::fs::File::open(assets_path().join("obstacles.json")).unwrap(),
         )
         .unwrap();
         let obstacle_options: Vec<(usize, ObstacleConfig)> = list
             .into_iter()
             .map(|path| {
                 serde_json::from_reader(
-                    std::fs::File::open(static_path().join(format!("{}.json", path))).unwrap(),
+                    std::fs::File::open(assets_path().join(format!("{}.json", path))).unwrap(),
                 )
                 .unwrap()
             })
@@ -26,8 +26,8 @@ impl TrackGen {
             .collect();
         Self {
             config: config.clone(),
-            rng: Box::new(StdRng::from_seed(global_rng().gen())),
-            last: vec![Vec2::ZERO, Vec2::ZERO],
+            rng: Box::new(StdRng::from_seed(thread_rng().gen())),
+            last: vec![vec2::ZERO, vec2::ZERO],
             last_len: [0.0; 2],
             obstacle_options,
         }
@@ -57,7 +57,7 @@ impl TrackGen {
                 cur.x += var * self.config.step;
                 self.last.push(cur);
             }
-            let sides: Vec<[Vec2<f32>; 2]> = self
+            let sides: Vec<[vec2<f32>; 2]> = self
                 .last
                 .iter()
                 .copied()

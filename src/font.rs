@@ -3,7 +3,7 @@ use super::*;
 const CHARS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 pub struct Font {
-    geng: Geng,
+    draw2d: geng::draw2d::Helper,
     indices: HashMap<char, usize>,
     atlas: geng::TextureAtlas,
 }
@@ -13,11 +13,11 @@ impl Font {
         &self,
         framebuffer: &mut ugli::Framebuffer,
         camera: &geng::Camera2d,
-        pos: Vec2<f32>,
+        pos: vec2<f32>,
         size: f32,
         text: &str,
         align: f32,
-        color: Color<f32>,
+        color: Rgba<f32>,
     ) {
         if text.is_empty() {
             return;
@@ -33,10 +33,10 @@ impl Font {
             width += size * 0.8;
         }
         pos.x -= width * align;
-        self.geng.draw_2d(
+        self.draw2d.draw2d(
             framebuffer,
             camera,
-            &draw_2d::TexturedPolygon::with_mode(
+            &draw2d::TexturedPolygon::with_mode(
                 {
                     let mut vs = Vec::new();
                     for c in text.chars() {
@@ -48,38 +48,38 @@ impl Font {
                             continue;
                         }
                         let uv = self.atlas.uv(self.indices[&c]);
-                        let ps = AABB::point(pos).extend_positive(vec2(size, size));
+                        let ps = Aabb2::point(pos).extend_positive(vec2(size, size));
                         pos.x += size * 0.8;
-                        vs.push(draw_2d::TexturedVertex {
-                            a_pos: vec2(ps.x_min, ps.y_min),
+                        vs.push(draw2d::TexturedVertex {
+                            a_pos: vec2(ps.min.x, ps.min.y),
                             a_color: color,
-                            a_vt: vec2(uv.x_min, uv.y_min),
+                            a_vt: vec2(uv.min.x, uv.min.y),
                         });
-                        vs.push(draw_2d::TexturedVertex {
-                            a_pos: vec2(ps.x_max, ps.y_min),
+                        vs.push(draw2d::TexturedVertex {
+                            a_pos: vec2(ps.max.x, ps.min.y),
                             a_color: color,
-                            a_vt: vec2(uv.x_max, uv.y_min),
+                            a_vt: vec2(uv.max.x, uv.min.y),
                         });
-                        vs.push(draw_2d::TexturedVertex {
-                            a_pos: vec2(ps.x_max, ps.y_max),
+                        vs.push(draw2d::TexturedVertex {
+                            a_pos: vec2(ps.max.x, ps.max.y),
                             a_color: color,
-                            a_vt: vec2(uv.x_max, uv.y_max),
+                            a_vt: vec2(uv.max.x, uv.max.y),
                         });
 
-                        vs.push(draw_2d::TexturedVertex {
-                            a_pos: vec2(ps.x_min, ps.y_min),
+                        vs.push(draw2d::TexturedVertex {
+                            a_pos: vec2(ps.min.x, ps.min.y),
                             a_color: color,
-                            a_vt: vec2(uv.x_min, uv.y_min),
+                            a_vt: vec2(uv.min.x, uv.min.y),
                         });
-                        vs.push(draw_2d::TexturedVertex {
-                            a_pos: vec2(ps.x_max, ps.y_max),
+                        vs.push(draw2d::TexturedVertex {
+                            a_pos: vec2(ps.max.x, ps.max.y),
                             a_color: color,
-                            a_vt: vec2(uv.x_max, uv.y_max),
+                            a_vt: vec2(uv.max.x, uv.max.y),
                         });
-                        vs.push(draw_2d::TexturedVertex {
-                            a_pos: vec2(ps.x_min, ps.y_max),
+                        vs.push(draw2d::TexturedVertex {
+                            a_pos: vec2(ps.min.x, ps.max.y),
                             a_color: color,
-                            a_vt: vec2(uv.x_min, uv.y_max),
+                            a_vt: vec2(uv.min.x, uv.max.y),
                         });
                     }
                     vs
@@ -91,17 +91,17 @@ impl Font {
     }
 }
 
-impl geng::LoadAsset for Font {
-    fn load(geng: &Geng, path: &std::path::Path) -> geng::AssetFuture<Self> {
-        let geng = geng.clone();
+impl geng::asset::Load for Font {
+    fn load(manager: &geng::asset::Manager, path: &std::path::Path) -> geng::asset::Future<Self> {
+        let manager = manager.clone();
         let path = path.to_owned();
         async move {
             let mut textures = Vec::new();
             let mut indices = HashMap::new();
             for c in CHARS.chars() {
                 indices.insert(c, textures.len());
-                textures.push(<ugli::Texture as geng::LoadAsset>::load(
-                    &geng,
+                textures.push(<ugli::Texture as geng::asset::Load>::load(
+                    &manager,
                     &path.join(format!("{}.png", c)),
                 ));
             }
@@ -115,8 +115,8 @@ impl geng::LoadAsset for Font {
             let textures: Vec<&ugli::Texture> = textures.iter().collect();
             Ok(Self {
                 indices,
-                geng: geng.clone(),
-                atlas: geng::TextureAtlas::new(geng.ugli(), &textures, ugli::Filter::Nearest),
+                draw2d: geng::draw2d::Helper::new(manager.ugli(), false),
+                atlas: geng::TextureAtlas::new(manager.ugli(), &textures, ugli::Filter::Nearest),
             })
         }
         .boxed_local()

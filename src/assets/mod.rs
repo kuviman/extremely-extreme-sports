@@ -4,78 +4,78 @@ mod texture;
 
 pub use texture::*;
 
-#[derive(geng::Assets)]
-// #[asset(sequential)]
+#[derive(geng::asset::Load)]
+// #[load(sequential)]
 pub struct PlayerAssets {
-    #[asset(load_with = "load_items(geng, base_path.join(\"coat\"))")]
+    #[load(load_with = "load_items(&manager, base_path.join(\"coat\"))")]
     pub coat: HashMap<String, skin::ItemConfig>,
-    #[asset(load_with = "load_items(geng, base_path.join(\"hat\"))")]
+    #[load(load_with = "load_items(&manager, base_path.join(\"hat\"))")]
     pub hat: HashMap<String, skin::ItemConfig>,
-    #[asset(load_with = "load_items(geng, base_path.join(\"pants\"))")]
+    #[load(load_with = "load_items(&manager, base_path.join(\"pants\"))")]
     pub pants: HashMap<String, skin::ItemConfig>,
-    #[asset(load_with = "load_items(geng, base_path.join(\"face\"))")]
+    #[load(load_with = "load_items(&manager, base_path.join(\"face\"))")]
     pub face: HashMap<String, skin::ItemConfig>,
-    #[asset(load_with = "load_equipment(geng, base_path.join(\"equipment\"))")]
+    #[load(load_with = "load_equipment(&manager, base_path.join(\"equipment\"))")]
     pub equipment: HashMap<String, ugli::Texture>,
     pub body: skin::ItemConfig,
-    #[asset(load_with = "load_secret(geng, base_path.to_owned())")]
+    #[load(load_with = "load_secret(&manager, base_path.to_owned())")]
     pub secret: HashMap<String, skin::SecretConfig>,
     pub parachute: skin::ItemConfig,
 }
 
 async fn load_equipment(
-    geng: &Geng,
+    manager: &geng::asset::Manager,
     base_path: std::path::PathBuf,
 ) -> anyhow::Result<HashMap<String, ugli::Texture>> {
-    let json: String = geng::LoadAsset::load(geng, &base_path.join("_list.json")).await?;
+    let json: String = geng::asset::Load::load(manager, &base_path.join("_list.json")).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
-    let result = future::join_all(
-        list.iter()
-            .map(|path| geng::LoadAsset::load(geng, &base_path.join(format!("{}.png", path)))),
-    )
-    .await
-    .into_iter()
-    .collect::<Result<Vec<_>, _>>()?;
+    let result =
+        future::join_all(list.iter().map(|path| {
+            geng::asset::Load::load(manager, &base_path.join(format!("{}.png", path)))
+        }))
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(list.into_iter().zip(result).collect())
 }
 
 async fn load_items(
-    geng: &Geng,
+    manager: &geng::asset::Manager,
     base_path: std::path::PathBuf,
 ) -> anyhow::Result<HashMap<String, skin::ItemConfig>> {
-    let json: String = geng::LoadAsset::load(geng, &base_path.join("_list.json")).await?;
+    let json: String = geng::asset::Load::load(manager, &base_path.join("_list.json")).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
-    let result = future::join_all(
-        list.iter()
-            .map(|path| geng::LoadAsset::load(geng, &base_path.join(format!("{}.json", path)))),
-    )
-    .await
-    .into_iter()
-    .collect::<Result<Vec<_>, _>>()?;
+    let result =
+        future::join_all(list.iter().map(|path| {
+            geng::asset::Load::load(manager, &base_path.join(format!("{}.json", path)))
+        }))
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(list.into_iter().zip(result).collect())
 }
 
 async fn load_secret(
-    geng: &Geng,
+    manager: &geng::asset::Manager,
     path: std::path::PathBuf,
 ) -> anyhow::Result<HashMap<String, skin::SecretConfig>> {
     let base_path = path.join("secret");
-    let json: String = geng::LoadAsset::load(geng, &base_path.join("_list.json")).await?;
+    let json: String = geng::asset::Load::load(manager, &base_path.join("_list.json")).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
-    let result = future::join_all(
-        list.iter()
-            .map(|path| geng::LoadAsset::load(geng, &base_path.join(path).join("config.json"))),
-    )
-    .await
-    .into_iter()
-    .collect::<Result<Vec<_>, _>>()?;
+    let result =
+        future::join_all(list.iter().map(|path| {
+            geng::asset::Load::load(manager, &base_path.join(path).join("config.json"))
+        }))
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(list.into_iter().zip(result).collect())
 }
 
-#[derive(geng::Assets)]
+#[derive(geng::asset::Load)]
 pub struct Assets {
     pub player: PlayerAssets,
-    #[asset(load_with = "load_obstacles(&geng, &base_path)")]
+    #[load(load_with = "load_obstacles(&manager, &base_path)")]
     pub obstacles: Vec<ObstacleAssets>,
     pub texture_program: ugli::Program,
     pub shadow: ugli::Program,
@@ -90,9 +90,9 @@ pub struct Assets {
     pub walk: Texture,
     pub ava_warning: Texture,
     pub font: Font,
-    #[asset(range = "1..=3", path = "crash_sound*.wav")]
+    #[load(list = "1..=3", path = "crash_sound*.wav")]
     pub crash_sounds: Vec<geng::Sound>,
-    #[asset(range = "1..=4", path = "emotes/*.png")]
+    #[load(list = "1..=4", path = "emotes/*.png")]
     pub emotes: Vec<Texture>,
     pub ride_sound: geng::Sound,
     pub boom: Texture,
@@ -100,18 +100,18 @@ pub struct Assets {
     pub boom_sound: geng::Sound,
     pub avalanche_sound: geng::Sound,
     pub spawn_sound: geng::Sound,
-    #[asset(path = "LD-50.mp3")]
+    #[load(path = "LD-50.mp3")]
     pub music: geng::Sound,
-    #[asset(load_with = "async { Ok::<_, anyhow::Error>(HashMap::new()) }")]
+    #[load(load_with = "async { Ok::<_, anyhow::Error>(HashMap::new()) }")]
     pub textures: HashMap<String, Texture>,
 }
 
 impl Assets {
     pub async fn process(&mut self, geng: &Geng) {
         self.border.set_wrap_mode(ugli::WrapMode::Repeat);
-        self.ride_sound.looped = true;
-        self.avalanche_sound.looped = true;
-        self.music.looped = true;
+        self.ride_sound.set_looped(true);
+        self.avalanche_sound.set_looped(true);
+        self.music.set_looped(true);
         let mut paths = Vec::new();
         paths.extend(
             self.player
@@ -181,15 +181,14 @@ impl Assets {
                 }
             }
         }
-        let result = future::join_all(
-            paths
-                .iter()
-                .map(|path| geng::LoadAsset::load(geng, &static_path().join(path))),
-        )
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+        let result =
+            future::join_all(paths.iter().map(|path| {
+                geng::asset::Load::load(geng.asset_manager(), &assets_path().join(path))
+            }))
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         for (path, texture) in paths.into_iter().zip(result) {
             self.textures.insert(path.to_owned(), texture);
         }
@@ -197,22 +196,23 @@ impl Assets {
 }
 
 async fn load_obstacles(
-    geng: &Geng,
+    manager: &geng::asset::Manager,
     base_path: &std::path::Path,
 ) -> anyhow::Result<Vec<ObstacleAssets>> {
-    let list = <String as geng::LoadAsset>::load(geng, &base_path.join("obstacles.json")).await?;
+    let list =
+        <String as geng::asset::Load>::load(manager, &base_path.join("obstacles.json")).await?;
     let list: Vec<String> = serde_json::from_str(&list)?;
     let mut result = Vec::new();
     for t in list {
-        result.push(geng::LoadAsset::load(geng, &base_path.join(t)).await?);
+        result.push(geng::asset::Load::load(manager, &base_path.join(t)).await?);
     }
     Ok(result)
 }
 
-#[derive(geng::Assets, Deserialize)]
-#[asset(json)]
+#[derive(geng::asset::Load, Deserialize)]
+#[load(json)]
 pub struct ObstacleConfig {
-    pub hitbox_origin: Vec2<f32>,
+    pub hitbox_origin: vec2<f32>,
     pub hitbox_radius: f32,
     pub spawn_weight: f32,
 }
@@ -222,14 +222,14 @@ pub struct ObstacleAssets {
     pub texture: Texture,
 }
 
-impl geng::LoadAsset for ObstacleAssets {
-    fn load(geng: &Geng, path: &std::path::Path) -> geng::AssetFuture<Self> {
-        let config = <ObstacleConfig as geng::LoadAsset>::load(geng, &{
+impl geng::asset::Load for ObstacleAssets {
+    fn load(manager: &geng::asset::Manager, path: &std::path::Path) -> geng::asset::Future<Self> {
+        let config = <ObstacleConfig as geng::asset::Load>::load(manager, &{
             let mut path = path.to_owned();
             path.set_extension("json");
             path
         });
-        let texture = <Texture as geng::LoadAsset>::load(geng, &{
+        let texture = <Texture as geng::asset::Load>::load(manager, &{
             let mut path = path.to_owned();
             path.set_extension("png");
             path

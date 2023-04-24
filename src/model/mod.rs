@@ -74,9 +74,9 @@ pub enum PlayerState {
     Ride,
     Crash {
         timer: f32,
-        ski_velocity: Vec2<f32>,
+        ski_velocity: vec2<f32>,
         ski_rotation: f32,
-        crash_position: Vec2<f32>,
+        crash_position: vec2<f32>,
     },
     Parachute {
         timer: f32,
@@ -90,13 +90,13 @@ pub struct Player {
     pub emote: Option<(f32, usize)>,
     #[diff = "eq"]
     pub name: String,
-    pub position: Vec2<f32>,
+    pub position: vec2<f32>,
     #[diff = "eq"]
     pub config: skin::Config,
     pub radius: f32,
     pub rotation: f32,
-    pub input: Vec2<f32>,
-    pub velocity: Vec2<f32>,
+    pub input: vec2<f32>,
+    pub velocity: vec2<f32>,
     pub state: PlayerState,
     pub seen_no_avalanche: bool,
     pub ride_volume: f32,

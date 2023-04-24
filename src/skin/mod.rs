@@ -10,7 +10,7 @@ impl WiggleThing for f32 {
     }
 }
 
-impl WiggleThing for Vec2<f32> {
+impl WiggleThing for vec2<f32> {
     fn zero() -> Self {
         vec2(0.0, 0.0)
     }
@@ -84,14 +84,14 @@ pub struct Part {
     #[serde(default)]
     pub z: i32,
     pub texture: String,
-    pub origin: Vec2<f32>,
-    pub position: Inter<Vec2<f32>>,
+    pub origin: vec2<f32>,
+    pub position: Inter<vec2<f32>>,
     pub rotation: Option<Inter<f32>>,
-    pub scale: Option<Inter<Vec2<f32>>>,
+    pub scale: Option<Inter<vec2<f32>>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::Assets)]
-#[asset(json)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::asset::Load)]
+#[load(json)]
 pub struct SecretConfig {
     pub parts: Option<Vec<Part>>,
     pub hat: Option<String>,
@@ -101,15 +101,15 @@ pub struct SecretConfig {
     pub face: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::Assets)]
-#[asset(json)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::asset::Load)]
+#[load(json)]
 pub struct ItemConfig {
     pub parts: Vec<Part>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::Assets)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::asset::Load)]
 // #[serde(tag = "type")]
-#[asset(json)]
+#[load(json)]
 pub struct Config {
     pub secret: Option<String>,
     pub hat: Option<String>,
@@ -154,7 +154,7 @@ impl Config {
         Box::new(result.into_iter())
     }
     pub fn random(assets: &assets::PlayerAssets) -> Self {
-        let mut rng = global_rng();
+        let mut rng = thread_rng();
         let rng = &mut rng;
         Self {
             secret: None,
@@ -181,15 +181,15 @@ struct State {
 pub struct Renderer {
     assets: Rc<Assets>,
     config: Config,
-    quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
+    quad_geometry: ugli::VertexBuffer<draw2d::Vertex>,
     time: f32,
     state: RefCell<State>,
 }
 
 pub struct DrawInstance {
-    pub position: Vec2<f32>,
+    pub position: vec2<f32>,
     pub rotation: f32,
-    pub velocity: Vec2<f32>,
+    pub velocity: vec2<f32>,
     pub state: PlayerState,
 }
 
@@ -201,16 +201,16 @@ impl Renderer {
             quad_geometry: ugli::VertexBuffer::new_static(
                 geng.ugli(),
                 vec![
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(-1.0, -1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(1.0, -1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(1.0, 1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(-1.0, 1.0),
                     },
                 ],
@@ -220,21 +220,21 @@ impl Renderer {
                 position: config
                     .parts(assets, &PlayerState::Parachute { timer: 0.0 })
                     .map(|_| PartState {
-                        phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
+                        phase: thread_rng().gen_range(0.0..=2.0 * f32::PI),
                         frequency: 0.0,
                     })
                     .collect(),
                 rotation: config
                     .parts(assets, &PlayerState::Parachute { timer: 0.0 })
                     .map(|_| PartState {
-                        phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
+                        phase: thread_rng().gen_range(0.0..=2.0 * f32::PI),
                         frequency: 0.0,
                     })
                     .collect(),
                 scale: config
                     .parts(assets, &PlayerState::Parachute { timer: 0.0 })
                     .map(|_| PartState {
-                        phase: global_rng().gen_range(0.0..=2.0 * f32::PI),
+                        phase: thread_rng().gen_range(0.0..=2.0 * f32::PI),
                         frequency: 0.0,
                     })
                     .collect(),
@@ -270,25 +270,24 @@ impl Renderer {
                 ),
                 PlayerState::Parachute { timer } => vec2(0.0, 10.0 * timer / config.parachute_time),
             };
-        let mut draw_texture =
-            |texture: &ugli::Texture, transform: Mat3<f32>, color: Color<f32>| {
-                let framebuffer_size = framebuffer.size();
-                ugli::draw(
-                    framebuffer,
-                    &self.assets.texture_program,
-                    ugli::DrawMode::TriangleFan,
-                    &self.quad_geometry,
-                    (
-                        ugli::uniforms! {
-                            u_texture: texture,
-                            u_model_matrix: transform,
-                            u_color: color,
-                        },
-                        geng::camera2d_uniforms(camera, framebuffer_size.map(|x| x as f32)),
-                    ),
-                    &ugli::DrawParameters { ..default() },
-                );
-            };
+        let mut draw_texture = |texture: &ugli::Texture, transform: mat3<f32>, color: Rgba<f32>| {
+            let framebuffer_size = framebuffer.size();
+            ugli::draw(
+                framebuffer,
+                &self.assets.texture_program,
+                ugli::DrawMode::TriangleFan,
+                &self.quad_geometry,
+                (
+                    ugli::uniforms! {
+                        u_texture: texture,
+                        u_model_matrix: transform,
+                        u_color: color,
+                    },
+                    camera.uniforms(framebuffer_size.map(|x| x as f32)),
+                ),
+                &ugli::DrawParameters { ..default() },
+            );
+        };
 
         let equipment: Option<&ugli::Texture> = self.config.equipment.as_ref().map(|name| {
             self.assets
@@ -301,8 +300,8 @@ impl Renderer {
             if let PlayerState::Ride | PlayerState::Parachute { .. } = player.state {
                 draw_texture(
                     equipment,
-                    Mat3::translate(draw_position) * Mat3::rotate(player.rotation),
-                    Color::WHITE,
+                    mat3::translate(draw_position) * mat3::rotate(player.rotation),
+                    Rgba::WHITE,
                 );
             } else if let PlayerState::Crash {
                 timer,
@@ -314,31 +313,31 @@ impl Renderer {
                 let t = timer.min(1.0);
                 draw_texture(
                     equipment,
-                    Mat3::translate(
+                    mat3::translate(
                         crash_position
                             + ski_velocity * t
                             + vec2(0.0, (1.0 - (t * 2.0 - 1.0).sqr()) * 5.0),
-                    ) * Mat3::rotate(ski_rotation + t * 5.0),
-                    Color::WHITE,
+                    ) * mat3::rotate(ski_rotation + t * 5.0),
+                    Rgba::WHITE,
                 );
             } else {
                 draw_texture(
                     equipment,
-                    Mat3::translate(draw_position + vec2(0.0, 1.0)),
-                    Color::WHITE,
+                    mat3::translate(draw_position + vec2(0.0, 1.0)),
+                    Rgba::WHITE,
                 );
             }
         }
 
-        let final_matrix = Mat3::translate(draw_position)
-            * Mat3::rotate(
+        let final_matrix = mat3::translate(draw_position)
+            * mat3::rotate(
                 (match player.state {
                     PlayerState::Crash { timer, .. } => timer,
                     _ => 0.0,
                 } * 7.0)
                     .min(f32::PI / 2.0),
             )
-            * Mat3::scale_uniform(1.0 / 64.0);
+            * mat3::scale_uniform(1.0 / 64.0);
         let turn = if player.state == PlayerState::Ride {
             player.rotation / config.rotation_limit
         } else {
@@ -349,11 +348,11 @@ impl Renderer {
         } else {
             0.0
         };
-        let mut part_matrices: HashMap<&str, Mat3<f32>> = HashMap::new();
+        let mut part_matrices: HashMap<&str, mat3<f32>> = HashMap::new();
         let mut state = self.state.borrow_mut();
         struct Q<'a> {
             texture: &'a ugli::Texture,
-            matrix: Mat3<f32>,
+            matrix: mat3<f32>,
             z: i32,
         }
         let mut q = Vec::new();
@@ -363,31 +362,31 @@ impl Renderer {
                 Some(name) => part_matrices
                     .get(name.as_str())
                     .copied()
-                    .unwrap_or(Mat3::identity()),
-                None => Mat3::identity(),
+                    .unwrap_or(mat3::identity()),
+                None => mat3::identity(),
             };
             let position_wiggle = part.position.interpolate(turn, speed);
             state.position[i].frequency = position_wiggle.frequency.unwrap_or(0.0);
             let mut matrix =
-                parent_matrix * Mat3::translate(position_wiggle.get(state.position[i].phase));
+                parent_matrix * mat3::translate(position_wiggle.get(state.position[i].phase));
             if let Some(rotation) = &part.rotation {
                 let rotation_wiggle = rotation.interpolate(turn, speed);
                 state.rotation[i].frequency = rotation_wiggle.frequency.unwrap_or(0.0);
                 matrix *=
-                    Mat3::rotate(rotation_wiggle.get(state.rotation[i].phase) * f32::PI / 180.0);
+                    mat3::rotate(rotation_wiggle.get(state.rotation[i].phase) * f32::PI / 180.0);
             }
             if let Some(scale) = &part.scale {
                 let scale_wiggle = scale.interpolate(turn, speed);
                 state.scale[i].frequency = scale_wiggle.frequency.unwrap_or(0.0);
-                matrix *= Mat3::scale(scale_wiggle.get(state.scale[i].phase));
+                matrix *= mat3::scale(scale_wiggle.get(state.scale[i].phase));
             }
-            matrix *= Mat3::translate(-part.origin);
+            matrix *= mat3::translate(-part.origin);
             if let Some(name) = &part.name {
                 part_matrices.insert(name.as_str(), matrix);
             }
             let matrix = matrix
-                * Mat3::scale(texture.size().map(|x| x as f32) / 2.0)
-                * Mat3::translate(vec2(1.0, 1.0));
+                * mat3::scale(texture.size().map(|x| x as f32) / 2.0)
+                * mat3::translate(vec2(1.0, 1.0));
             q.push(Q {
                 texture,
                 matrix: final_matrix * matrix,
@@ -396,7 +395,7 @@ impl Renderer {
         }
         q.sort_by_key(|q| q.z);
         for q in q {
-            draw_texture(q.texture, q.matrix, Color::WHITE);
+            draw_texture(q.texture, q.matrix, Rgba::WHITE);
         }
     }
 }

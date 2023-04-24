@@ -15,7 +15,11 @@ use font::*;
 use model::*;
 use server::Model;
 
-const DISCORD_LINK: &'static str = "https://discord.gg/DZaEMPpANY";
+const DISCORD_LINK: &str = "https://discord.gg/DZaEMPpANY";
+
+fn assets_path() -> std::path::PathBuf {
+    run_dir().join("assets")
+}
 
 #[derive(clap::Parser, Clone)]
 pub struct Opt {
@@ -44,22 +48,21 @@ impl geng::ProgressScreen for LoadingScreen {}
 impl geng::State for LoadingScreen {
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         let framebuffer_size = framebuffer.size();
-        ugli::clear(framebuffer, Some(Color::WHITE), None);
+        ugli::clear(framebuffer, Some(Rgba::WHITE), None, None);
         self.geng.default_font().draw(
             framebuffer,
             &geng::PixelPerfectCamera,
             "Loading assets...",
-            framebuffer_size.map(|x| x as f32) / 2.0,
-            geng::TextAlign::CENTER,
-            40.0,
-            Color::BLACK,
+            vec2::splat(geng::TextAlign::CENTER),
+            mat3::translate(framebuffer_size.map(|x| x as f32) / 2.0) * mat3::scale_uniform(40.0),
+            Rgba::BLACK,
         );
     }
 }
 
 fn main() {
     // logger::init().unwrap();
-    let mut opt: Opt = program_args::parse();
+    let mut opt: Opt = cli::parse();
     if opt.connect.is_none() && opt.server.is_none() {
         if cfg!(target_arch = "wasm32") {
             opt.connect = Some(
@@ -76,29 +79,15 @@ fn main() {
     let game_constructor = {
         let opt = opt.clone();
         move |geng: &Geng, player_id, model| {
-            geng::LoadingScreen::new(
-                &geng,
-                LoadingScreen::new(geng),
-                <Assets as geng::LoadAsset>::load(&geng, &static_path()).then({
-                    let geng = geng.clone();
-                    move |assets| async move {
-                        match assets {
-                            Ok(mut assets) => {
-                                assets.process(&geng).await;
-                                Ok(assets)
-                            }
-                            Err(e) => Err(e),
-                        }
-                    }
-                }),
-                {
-                    let geng = geng.clone();
-                    move |assets| {
-                        let assets = assets.expect("Failed to load assets");
-                        client::run(&geng, &Rc::new(assets), player_id, &opt, model)
-                    }
-                },
-            )
+            geng::LoadingScreen::new(&geng, LoadingScreen::new(geng), {
+                let geng = geng.clone();
+                async move {
+                    let mut assets: Assets =
+                        geng.asset_manager().load(assets_path()).await.unwrap();
+                    assets.process(&geng).await;
+                    client::run(&geng, &Rc::new(assets), player_id, &opt, model)
+                }
+            })
         }
     };
     if opt.server.is_some() && opt.connect.is_none() {
@@ -126,7 +115,7 @@ fn main() {
             let geng = geng.clone();
             move |player_id, model| game_constructor(&geng, player_id, model)
         });
-        geng::run(&geng, state);
+        geng.run(state);
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some((server_handle, server_thread)) = server {

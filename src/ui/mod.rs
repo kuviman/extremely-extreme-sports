@@ -2,13 +2,13 @@ use super::*;
 
 pub struct Button<T> {
     pub text: String,
-    pub position: Vec2<f32>,
+    pub position: vec2<f32>,
     pub size: f32,
     pub message: T,
 }
 
 impl<T> Button<T> {
-    pub fn new(text: &str, position: Vec2<f32>, size: f32, align: f32, message: T) -> Self {
+    pub fn new(text: &str, position: vec2<f32>, size: f32, align: f32, message: T) -> Self {
         let width = text.len() as f32 * 0.8;
         Self {
             text: text.to_owned(),
@@ -17,8 +17,8 @@ impl<T> Button<T> {
             message,
         }
     }
-    pub fn aabb(&self) -> AABB<f32> {
-        AABB::point(self.position)
+    pub fn aabb(&self) -> Aabb2<f32> {
+        Aabb2::point(self.position)
             .extend_positive(vec2(self.text.len() as f32 * 0.8, 1.0) * self.size)
     }
 }
@@ -26,9 +26,9 @@ impl<T> Button<T> {
 pub struct Controller {
     geng: Geng,
     assets: Rc<Assets>,
-    mouse: Vec2<f32>,
+    mouse: vec2<f32>,
     camera: geng::Camera2d,
-    framebuffer_size: Vec2<f32>,
+    framebuffer_size: vec2<f32>,
 }
 
 impl Controller {
@@ -72,9 +72,9 @@ impl Controller {
                 &button.text,
                 0.0,
                 if hovered {
-                    Color::rgb(0.5, 0.5, 1.0)
+                    Rgba::opaque(0.5, 0.5, 1.0)
                 } else {
-                    Color::WHITE
+                    Rgba::WHITE
                 },
             );
         }

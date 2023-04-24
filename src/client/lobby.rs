@@ -29,14 +29,14 @@ pub enum State {
 
 pub struct Lobby {
     geng: Geng,
-    framebuffer_size: Vec2<usize>,
+    framebuffer_size: vec2<usize>,
     assets: Rc<Assets>,
     player_id: Id,
     model: simple_net::Remote<Model>,
-    transition: Option<geng::Transition>,
+    transition: Option<geng::state::Transition>,
     name: String,
     camera: geng::Camera2d,
-    mouse: Vec2<f32>,
+    mouse: vec2<f32>,
     config: skin::Config,
     state: State,
     skin_renderer: skin::Renderer,
@@ -51,7 +51,7 @@ impl Lobby {
         model: simple_net::Remote<Model>,
     ) -> Self {
         let random_config = skin::Config::random(&assets.player);
-        let config = match autosave::load("player.json") {
+        let config = match preferences::load("player.json") {
             Some(mut config) => {
                 let correct = |config: &skin::Config| -> bool {
                     if let Some(name) = &config.secret {
@@ -105,11 +105,11 @@ impl Lobby {
             player_id,
             model,
             transition: None,
-            name: match autosave::load("player_name.txt") {
+            name: match preferences::load("player_name.txt") {
                 Some(name) => name,
                 None => String::new(),
             },
-            mouse: Vec2::ZERO,
+            mouse: vec2::ZERO,
             skin_renderer: skin::Renderer::new(geng, &config, assets),
             config,
             state: State::Main,
@@ -166,7 +166,7 @@ impl Lobby {
             }
             UiMessage::Leaderboard => self.state = State::Leaderboard,
             UiMessage::Play => {
-                self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
+                self.transition = Some(geng::state::Transition::Switch(Box::new(Game::new(
                     &self.geng,
                     &self.assets,
                     self.player_id,
@@ -183,7 +183,7 @@ impl Lobby {
                 self.state = State::Customizer;
             }
             UiMessage::Spectate => {
-                self.transition = Some(geng::Transition::Switch(Box::new(Game::new(
+                self.transition = Some(geng::state::Transition::Switch(Box::new(Game::new(
                     &self.geng,
                     &self.assets,
                     self.player_id,
@@ -209,8 +209,8 @@ impl Lobby {
             }
         }
         self.skin_renderer = skin::Renderer::new(&self.geng, &self.config, &self.assets);
-        autosave::save("player.json", &self.config);
-        autosave::save("player_name.txt", &self.name);
+        preferences::save("player.json", &self.config);
+        preferences::save("player_name.txt", &self.name);
     }
     fn buttons(&self) -> Vec<ui::Button<UiMessage>> {
         match self.state {
@@ -366,7 +366,7 @@ impl geng::State for Lobby {
         self.framebuffer_size = framebuffer.size();
         self.camera.fov =
             2.0f32.max(2.7 * framebuffer.size().y as f32 / framebuffer.size().x as f32);
-        ugli::clear(framebuffer, Some(Color::WHITE), None);
+        ugli::clear(framebuffer, Some(Rgba::WHITE), None, None);
 
         match self.state {
             State::Leaderboard => {
@@ -377,7 +377,7 @@ impl geng::State for Lobby {
                     0.2,
                     "leaderboard",
                     0.5,
-                    Color::GRAY,
+                    Rgba::GRAY,
                 );
                 {
                     let model = &self.model;
@@ -396,7 +396,7 @@ impl geng::State for Lobby {
                         }
                     }
                     let mut y = 1.0;
-                    let highlight = Color::rgb(0.5, 0.5, 1.0);
+                    let highlight = Rgba::opaque(0.5, 0.5, 1.0);
                     for (index, (name, _score)) in rows.iter().enumerate() {
                         if index == 10 {
                             y -= 0.1;
@@ -404,7 +404,7 @@ impl geng::State for Lobby {
                         let color = if *name == self.name {
                             highlight
                         } else {
-                            Color::WHITE
+                            Rgba::WHITE
                         };
                         if index < 10 {
                             self.assets.font.draw(
@@ -427,7 +427,7 @@ impl geng::State for Lobby {
                         let color = if *name == self.name {
                             highlight
                         } else {
-                            Color::WHITE
+                            Rgba::WHITE
                         };
                         self.assets.font.draw(
                             framebuffer,
@@ -449,7 +449,7 @@ impl geng::State for Lobby {
                         let color = if *name == self.name {
                             highlight
                         } else {
-                            Color::WHITE
+                            Rgba::WHITE
                         };
                         self.assets.font.draw(
                             framebuffer,
@@ -473,18 +473,18 @@ impl geng::State for Lobby {
                     &skin::DrawInstance {
                         position: vec2(-0.5, 0.0),
                         rotation: 0.0,
-                        velocity: Vec2::ZERO,
+                        velocity: vec2::ZERO,
                         state: PlayerState::SpawnWalk,
                     },
                 );
 
-                let c = if AABB::point(vec2(0.5, 1.1))
+                let c = if Aabb2::point(vec2(0.5, 1.1))
                     .extend_up(0.1)
                     .extend_left(2.0)
                     .extend_right(2.0)
                     .contains(self.mouse)
                 {
-                    Some(Color::rgb(0.5, 0.5, 1.0))
+                    Some(Rgba::opaque(0.5, 0.5, 1.0))
                 } else {
                     None
                 };
@@ -496,7 +496,7 @@ impl geng::State for Lobby {
                         0.1,
                         "type your name",
                         0.5,
-                        c.unwrap_or(Color::RED),
+                        c.unwrap_or(Rgba::RED),
                     );
                 } else {
                     self.assets.font.draw(
@@ -506,7 +506,7 @@ impl geng::State for Lobby {
                         0.1,
                         &self.name,
                         0.5,
-                        c.unwrap_or(Color::WHITE),
+                        c.unwrap_or(Rgba::WHITE),
                     );
                 }
             }
@@ -552,7 +552,7 @@ impl geng::State for Lobby {
                     self.framebuffer_size.map(|x| x as f32),
                     position.map(|x| x as f32),
                 );
-                if AABB::point(vec2(0.5, 1.1))
+                if Aabb2::point(vec2(0.5, 1.1))
                     .extend_up(0.1)
                     .extend_left(2.0)
                     .extend_right(2.0)
@@ -575,7 +575,7 @@ impl geng::State for Lobby {
                     self.framebuffer_size.map(|x| x as f32),
                     touches[0].position.map(|x| x as f32),
                 );
-                if AABB::point(vec2(0.5, 1.1))
+                if Aabb2::point(vec2(0.5, 1.1))
                     .extend_up(0.1)
                     .extend_left(2.0)
                     .extend_right(2.0)
@@ -597,7 +597,7 @@ impl geng::State for Lobby {
         }
     }
 
-    fn transition(&mut self) -> Option<geng::Transition> {
+    fn transition(&mut self) -> Option<geng::state::Transition> {
         self.transition.take()
     }
 

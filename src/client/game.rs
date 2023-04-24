@@ -2,8 +2,8 @@ use super::*;
 
 #[derive(ugli::Vertex)]
 pub struct Particle {
-    i_pos: Vec2<f32>,
-    i_vel: Vec2<f32>,
+    i_pos: vec2<f32>,
+    i_vel: vec2<f32>,
     i_time: f32,
     i_size: f32,
     i_opacity: f32,
@@ -15,8 +15,8 @@ fn can_detonate(x: f32) -> bool {
 
 pub struct Game {
     next_update: f64,
-    framebuffer_size: Vec2<usize>,
-    touch_control: Option<Vec2<f32>>,
+    framebuffer_size: vec2<usize>,
+    touch_control: Option<vec2<f32>>,
     touches: usize,
     time: f32,
     volume: f64,
@@ -34,24 +34,24 @@ pub struct Game {
     particles: ugli::VertexBuffer<Particle>,
     show_player_names: bool,
     explosion_particles: ugli::VertexBuffer<Particle>,
-    quad_geometry: ugli::VertexBuffer<draw_2d::Vertex>,
+    quad_geometry: ugli::VertexBuffer<draw2d::Vertex>,
     ride_sound_effect: geng::SoundEffect,
     avalanche_sound_effect: geng::SoundEffect,
     music: Option<geng::SoundEffect>,
-    spawn_particles: Vec<(f32, Vec2<f32>)>,
+    spawn_particles: Vec<(f32, vec2<f32>)>,
     ui_camera: geng::Camera2d,
     ui_controller: ui::Controller,
     minimap_full: bool,
-    transition: Option<geng::Transition>,
+    transition: Option<geng::state::Transition>,
 }
 
 impl Drop for Game {
     fn drop(&mut self) {
         if let Some(effect) = &mut self.music {
-            effect.pause();
+            effect.stop();
         }
-        self.ride_sound_effect.pause();
-        self.avalanche_sound_effect.pause();
+        self.ride_sound_effect.stop();
+        self.avalanche_sound_effect.stop();
     }
 }
 
@@ -79,7 +79,7 @@ impl Game {
     fn handle_ui(&mut self, message: UiMessage) {
         match message {
             UiMessage::Menu => {
-                self.transition = Some(geng::Transition::Switch(Box::new(Lobby::new(
+                self.transition = Some(geng::state::Transition::Switch(Box::new(Lobby::new(
                     &self.geng,
                     &self.assets,
                     self.player_id,
@@ -105,7 +105,7 @@ impl Game {
             framebuffer_size: vec2(1, 1),
             interpolated_players: default(),
             time: 0.0,
-            volume: autosave::load::<f64>("volume.json")
+            volume: preferences::load::<f64>("volume.json")
                 .unwrap_or(0.5)
                 .clamp(0.0, 1.0),
             show_player_names: true,
@@ -134,7 +134,7 @@ impl Game {
                         seen_no_avalanche: false,
                         ride_volume: 0.0,
                         position: vec2(
-                            global_rng().gen_range(
+                            thread_rng().gen_range(
                                 model.get().track.at(0.0).safe_left
                                     ..=model.get().track.at(0.0).safe_right,
                             ),
@@ -142,8 +142,8 @@ impl Game {
                         ),
                         radius: 0.3,
                         rotation: 0.0,
-                        input: Vec2::ZERO,
-                        velocity: Vec2::ZERO,
+                        input: vec2::ZERO,
+                        velocity: vec2::ZERO,
                     });
                 }
                 result
@@ -166,16 +166,16 @@ impl Game {
             quad_geometry: ugli::VertexBuffer::new_static(
                 geng.ugli(),
                 vec![
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(-1.0, -1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(1.0, -1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(1.0, 1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(-1.0, 1.0),
                     },
                 ],
@@ -195,8 +195,8 @@ impl Game {
         &self,
         framebuffer: &mut ugli::Framebuffer,
         texture: &ugli::Texture,
-        transform: Mat3<f32>,
-        color: Color<f32>,
+        transform: mat3<f32>,
+        color: Rgba<f32>,
     ) {
         let framebuffer_size = framebuffer.size();
         ugli::draw(
@@ -210,7 +210,7 @@ impl Game {
                     u_model_matrix: transform,
                     u_color: color,
                 },
-                geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
+                self.camera.uniforms(framebuffer_size.map(|x| x as f32)),
             ),
             &ugli::DrawParameters { ..default() },
         );
@@ -219,8 +219,8 @@ impl Game {
     fn draw_shadow(
         &self,
         framebuffer: &mut ugli::Framebuffer,
-        transform: Mat3<f32>,
-        color: Color<f32>,
+        transform: mat3<f32>,
+        color: Rgba<f32>,
     ) {
         let framebuffer_size = framebuffer.size();
         ugli::draw(
@@ -230,16 +230,16 @@ impl Game {
             &ugli::VertexBuffer::new_dynamic(
                 self.geng.ugli(),
                 vec![
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(-1.0, -1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(1.0, -1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(1.0, 1.0),
                     },
-                    draw_2d::Vertex {
+                    draw2d::Vertex {
                         a_pos: vec2(-1.0, 1.0),
                     },
                 ],
@@ -249,10 +249,10 @@ impl Game {
                     u_model_matrix: transform,
                     u_color: color,
                 },
-                geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
+                self.camera.uniforms(framebuffer_size.map(|x| x as f32)),
             ),
             &ugli::DrawParameters {
-                blend_mode: Some(default()),
+                blend_mode: Some(ugli::BlendMode::straight_alpha()),
                 ..default()
             },
         );
@@ -262,18 +262,18 @@ impl Game {
         &self,
         framebuffer: &mut ugli::Framebuffer,
         obstacle: &ObstacleAssets,
-        transform: Mat3<f32>,
-        color: Color<f32>,
+        transform: mat3<f32>,
+        color: Rgba<f32>,
     ) {
         self.draw_texture(
             framebuffer,
             &obstacle.texture,
             transform
-                * Mat3::scale_uniform(1.0 / obstacle.config.hitbox_radius)
-                * Mat3::translate(-obstacle.config.hitbox_origin)
-                * Mat3::scale(obstacle.texture.size().map(|x| x as f32))
-                * Mat3::scale_uniform(0.5)
-                * Mat3::translate(vec2(1.0, 1.0)),
+                * mat3::scale_uniform(1.0 / obstacle.config.hitbox_radius)
+                * mat3::translate(-obstacle.config.hitbox_origin)
+                * mat3::scale(obstacle.texture.size().map(|x| x as f32))
+                * mat3::scale_uniform(0.5)
+                * mat3::translate(vec2(1.0, 1.0)),
             color,
         );
     }
@@ -296,7 +296,7 @@ impl Game {
             self.draw_texture(
                 framebuffer,
                 &self.assets.emotes[index],
-                Mat3::translate(
+                mat3::translate(
                     player.position
                         + vec2(0.0, 1.8)
                         + vec2(
@@ -307,12 +307,12 @@ impl Game {
                             } * 10.0
                                 / self.model.get().config.player.parachute_time,
                         ),
-                ) * Mat3::scale_uniform(0.3),
-                Color::WHITE,
+                ) * mat3::scale_uniform(0.3),
+                Rgba::WHITE,
             );
         }
     }
-    fn play_sound(&self, sound: &geng::Sound, pos: Vec2<f32>) {
+    fn play_sound(&self, sound: &geng::Sound, pos: vec2<f32>) {
         let mut effect = sound.effect();
         effect.set_volume(
             (1.0 - ((pos - self.camera.center).len() / 10.0).sqr()).max(0.0) as f64 * self.volume,
@@ -390,7 +390,7 @@ impl Game {
 }
 
 impl geng::State for Game {
-    fn transition(&mut self) -> Option<geng::Transition> {
+    fn transition(&mut self) -> Option<geng::state::Transition> {
         let result = self.transition.take();
         if result.is_some() {
             self.model.send(Message::Disconnect);
@@ -484,12 +484,12 @@ impl geng::State for Game {
             if self.geng.window().is_key_pressed(geng::Key::PageUp) {
                 self.volume += delta_time;
                 self.volume = self.volume.clamp(0.0, 1.0);
-                autosave::save("volume.json", &self.volume);
+                preferences::save("volume.json", &self.volume);
             }
             if self.geng.window().is_key_pressed(geng::Key::PageDown) {
                 self.volume -= delta_time;
                 self.volume = self.volume.clamp(0.0, 1.0);
-                autosave::save("volume.json", &self.volume);
+                preferences::save("volume.json", &self.volume);
             }
 
             let delta_time = delta_time as f32;
@@ -509,7 +509,7 @@ impl geng::State for Game {
             }
             self.spawn_particles.retain(|(t, _)| *t < 1.0);
 
-            let mut sounds: Vec<(&[geng::Sound], Vec2<f32>)> = Vec::new();
+            let mut sounds: Vec<(&[geng::Sound], vec2<f32>)> = Vec::new();
 
             if let Some(me) = self.players.get_mut(&self.player_id) {
                 if let Some((time, _)) = &mut me.emote {
@@ -519,7 +519,7 @@ impl geng::State for Game {
                     }
                 }
 
-                me.input = Vec2::ZERO;
+                me.input = vec2::ZERO;
 
                 if let Some(pos) = self.touch_control {
                     me.input.x += ((pos.x - self.framebuffer_size.x as f32 / 2.0)
@@ -631,16 +631,17 @@ impl geng::State for Game {
                     }
                 }
                 if let Some(me) = self.players.get_mut(&self.player_id) {
-                    if me.seen_no_avalanche && model.avalanche_position.is_some() {
-                        if me.state == PlayerState::SpawnWalk {
-                            for _ in 0..100 {
-                                self.explosion_time = Some(0.0);
-                                let mut sfx = self.assets.boom_sound.effect();
-                                sfx.set_volume(self.volume);
-                                sfx.play();
-                            }
-                            me.state = PlayerState::Ride;
+                    if me.seen_no_avalanche
+                        && model.avalanche_position.is_some()
+                        && me.state == PlayerState::SpawnWalk
+                    {
+                        for _ in 0..100 {
+                            self.explosion_time = Some(0.0);
+                            let mut sfx = self.assets.boom_sound.effect();
+                            sfx.set_volume(self.volume);
+                            sfx.play();
                         }
+                        me.state = PlayerState::Ride;
                     }
                     if let PlayerState::Crash { timer, .. } = me.state {
                         if timer > 2.0 {
@@ -685,7 +686,7 @@ impl geng::State for Game {
                                 if peneration > 0.0 {
                                     let normal = delta_pos.normalize_or_zero();
                                     player.position += normal * peneration;
-                                    player.velocity -= normal * Vec2::dot(player.velocity, normal);
+                                    player.velocity -= normal * vec2::dot(player.velocity, normal);
                                 }
                             }
                             player.position.x = player.position.x.clamp(
@@ -704,7 +705,7 @@ impl geng::State for Game {
                                 if peneration > 0.0 {
                                     let normal = delta_pos.normalize_or_zero();
                                     player.position += normal * peneration;
-                                    player.velocity -= normal * Vec2::dot(player.velocity, normal);
+                                    player.velocity -= normal * vec2::dot(player.velocity, normal);
                                     // TODO: copypasta
                                     if !matches!(player.state, PlayerState::Crash { .. }) {
                                         player.state = PlayerState::Crash {
@@ -739,19 +740,19 @@ impl geng::State for Game {
                     }
                     player.position.y = player.position.y.min(0.0);
                     if let Some(position) = model.avalanche_position {
-                        if player.position.y > position {
-                            if !matches!(
+                        if player.position.y > position
+                            && !matches!(
                                 player.state,
                                 PlayerState::SpawnWalk | PlayerState::Crash { .. }
-                            ) {
-                                player.state = PlayerState::Crash {
-                                    timer: 0.0,
-                                    ski_velocity: player.velocity,
-                                    ski_rotation: player.rotation,
-                                    crash_position: player.position,
-                                };
-                                sounds.push((&self.assets.crash_sounds, player.position));
-                            }
+                            )
+                        {
+                            player.state = PlayerState::Crash {
+                                timer: 0.0,
+                                ski_velocity: player.velocity,
+                                ski_rotation: player.rotation,
+                                crash_position: player.position,
+                            };
+                            sounds.push((&self.assets.crash_sounds, player.position));
                         }
                     }
                 }
@@ -763,18 +764,18 @@ impl geng::State for Game {
                         if let PlayerState::Ride | PlayerState::Crash { .. } = player.state {
                             particles.push(Particle {
                                 i_pos: player.position,
-                                i_vel: Vec2::ZERO,
+                                i_vel: vec2::ZERO,
                                 i_time: self.time,
                                 i_size: 0.2,
                                 i_opacity: 1.0,
                             });
                             let normal = vec2(1.0, 0.0).rotate(player.rotation);
-                            let force = Vec2::dot(player.velocity, normal).abs();
+                            let force = vec2::dot(player.velocity, normal).abs();
                             particles.push(Particle {
                                 i_pos: player.position,
                                 i_vel: vec2(
-                                    global_rng().gen_range(-1.0..=1.0),
-                                    global_rng().gen_range(-1.0..=1.0),
+                                    thread_rng().gen_range(-1.0..=1.0),
+                                    thread_rng().gen_range(-1.0..=1.0),
                                 ) / 2.0
                                     + player.velocity,
                                 i_time: self.time,
@@ -788,12 +789,12 @@ impl geng::State for Game {
                         for _ in 0..10 {
                             self.particles.push(Particle {
                                 i_pos: vec2(
-                                    self.camera.center.x + global_rng().gen_range(-20.0..=20.0),
-                                    pos + global_rng().gen_range(-3.0..=0.0),
+                                    self.camera.center.x + thread_rng().gen_range(-20.0..=20.0),
+                                    pos + thread_rng().gen_range(-3.0..=0.0),
                                 ),
                                 i_vel: vec2(
-                                    global_rng().gen_range(-1.0..=1.0),
-                                    global_rng().gen_range(-1.0..=1.0),
+                                    thread_rng().gen_range(-1.0..=1.0),
+                                    thread_rng().gen_range(-1.0..=1.0),
                                 ),
                                 i_time: self.time,
                                 i_size: 0.4,
@@ -824,7 +825,7 @@ impl geng::State for Game {
             }
 
             for (sounds, pos) in sounds {
-                self.play_sound(sounds.choose(&mut global_rng()).unwrap(), pos);
+                self.play_sound(sounds.choose(&mut thread_rng()).unwrap(), pos);
             }
         }
     }
@@ -857,7 +858,7 @@ impl geng::State for Game {
 
         let view_area = self.camera.view_area(framebuffer.size().map(|x| x as f32));
 
-        let in_view = |position: Vec2<f32>| -> bool {
+        let in_view = |position: vec2<f32>| -> bool {
             let position_in_view = view_area.transform.inverse() * position.extend(1.0);
             if position_in_view.x.abs() > 1.5 {
                 return false;
@@ -868,24 +869,24 @@ impl geng::State for Game {
             true
         };
 
-        ugli::clear(framebuffer, Some(Color::WHITE), None);
+        ugli::clear(framebuffer, Some(Rgba::WHITE), None, None);
         let view_width = view_area.bounding_box().width();
-        self.geng.draw_2d(
+        self.geng.draw2d().draw2d(
             framebuffer,
             &self.camera,
-            &draw_2d::Quad::new(
-                AABB::<f32>::point(vec2(self.camera.center.x, 0.0))
+            &draw2d::Quad::new(
+                Aabb2::<f32>::point(vec2(self.camera.center.x, 0.0))
                     .extend_left(view_width)
                     .extend_right(view_width)
                     .extend_up(100.0),
-                Color::rgb(145.0 / 255.0, 249.0 / 255.0, 1.0),
+                Rgba::opaque(145.0 / 255.0, 249.0 / 255.0, 1.0),
             ),
         );
-        self.geng.draw_2d(
+        self.geng.draw2d().draw2d(
             framebuffer,
             &self.camera,
-            &draw_2d::TexturedQuad::new(
-                AABB::<f32>::point(Vec2::ZERO)
+            &draw2d::TexturedQuad::new(
+                Aabb2::<f32>::point(vec2::ZERO)
                     .extend_symmetric(self.assets.background.size().map(|x| x as f32) * 0.05),
                 &self.assets.background,
             ),
@@ -896,11 +897,11 @@ impl geng::State for Game {
             } else {
                 &self.assets.detonator2
             };
-            self.geng.draw_2d(
+            self.geng.draw2d().draw2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::TexturedQuad::new(
-                    AABB::<f32>::point(Vec2::ZERO)
+                &draw2d::TexturedQuad::new(
+                    Aabb2::<f32>::point(vec2::ZERO)
                         .extend_positive(texture.size().map(|x| x as f32) * 0.05),
                     texture,
                 ),
@@ -908,11 +909,11 @@ impl geng::State for Game {
         }
         if let Some(my_player) = &my_player {
             if model.avalanche_position.is_none() && can_detonate(my_player.position.x) {
-                self.geng.draw_2d(
+                self.geng.draw2d().draw2d(
                     framebuffer,
                     &self.camera,
-                    &draw_2d::TexturedQuad::new(
-                        AABB::<f32>::point(self.camera.center + vec2(0.0, 4.0)).extend_symmetric(
+                    &draw2d::TexturedQuad::new(
+                        Aabb2::<f32>::point(self.camera.center + vec2(0.0, 4.0)).extend_symmetric(
                             self.assets.detonate_text.size().map(|x| x as f32) * 0.05,
                         ),
                         &self.assets.detonate_text,
@@ -923,13 +924,13 @@ impl geng::State for Game {
 
         let framebuffer_size = framebuffer.size();
 
-        let c2 = Color::rgba(0.9, 0.9, 0.95, 0.0);
-        let c1 = Color::rgba(0.9, 0.9, 0.95, 0.9);
+        let c2 = Rgba::new(0.9, 0.9, 0.95, 0.0);
+        let c1 = Rgba::new(0.9, 0.9, 0.95, 0.9);
 
-        self.geng.draw_2d(
+        self.geng.draw2d().draw2d(
             framebuffer,
             &self.camera,
-            &draw_2d::Chain::new(
+            &draw2d::Chain::new(
                 Chain::new(
                     model
                         .track
@@ -942,14 +943,14 @@ impl geng::State for Game {
                         .collect(),
                 ),
                 0.1,
-                Color::rgba(0.0, 0.0, 0.0, 0.3),
+                Rgba::new(0.0, 0.0, 0.0, 0.3),
                 0,
             ),
         );
-        self.geng.draw_2d(
+        self.geng.draw2d().draw2d(
             framebuffer,
             &self.camera,
-            &draw_2d::Chain::new(
+            &draw2d::Chain::new(
                 Chain::new(
                     model
                         .track
@@ -962,7 +963,7 @@ impl geng::State for Game {
                         .collect(),
                 ),
                 0.1,
-                Color::rgba(0.0, 0.0, 0.0, 0.3),
+                Rgba::new(0.0, 0.0, 0.0, 0.3),
                 0,
             ),
         );
@@ -982,24 +983,24 @@ impl geng::State for Game {
                         .rotate_90()
                         .normalize();
                     [
-                        draw_2d::TexturedVertex {
+                        draw2d::TexturedVertex {
                             a_pos: vec2(a.left, a.y),
-                            a_color: Color::WHITE,
+                            a_color: Rgba::WHITE,
                             a_vt: vec2(0.0, a.left_len / 2.0),
                         },
-                        draw_2d::TexturedVertex {
+                        draw2d::TexturedVertex {
                             a_pos: vec2(a.left, a.y) + n * OFF,
-                            a_color: Color::WHITE,
+                            a_color: Rgba::WHITE,
                             a_vt: vec2(1.0, a.left_len / 2.0),
                         },
                     ]
                 })
                 .collect();
             if vs.len() >= 3 {
-                self.geng.draw_2d(
+                self.geng.draw2d().draw2d(
                     framebuffer,
                     &self.camera,
-                    &draw_2d::TexturedPolygon::strip(vs, &self.assets.border),
+                    &draw2d::TexturedPolygon::strip(vs, &self.assets.border),
                 );
             }
             let vs: Vec<_> = model
@@ -1016,24 +1017,24 @@ impl geng::State for Game {
                         .rotate_90()
                         .normalize();
                     [
-                        draw_2d::TexturedVertex {
+                        draw2d::TexturedVertex {
                             a_pos: vec2(a.right, a.y),
-                            a_color: Color::WHITE,
+                            a_color: Rgba::WHITE,
                             a_vt: vec2(0.0, a.right_len / 2.0),
                         },
-                        draw_2d::TexturedVertex {
+                        draw2d::TexturedVertex {
                             a_pos: vec2(a.right, a.y) + n * OFF,
-                            a_color: Color::WHITE,
+                            a_color: Rgba::WHITE,
                             a_vt: vec2(1.0, a.right_len / 2.0),
                         },
                     ]
                 })
                 .collect();
             if vs.len() >= 3 {
-                self.geng.draw_2d(
+                self.geng.draw2d().draw2d(
                     framebuffer,
                     &self.camera,
-                    &draw_2d::TexturedPolygon::strip(vs, &self.assets.border),
+                    &draw2d::TexturedPolygon::strip(vs, &self.assets.border),
                 );
             }
         }
@@ -1047,12 +1048,12 @@ impl geng::State for Game {
                 ugli::uniforms! {
                     u_time: self.time,
                     u_texture: &self.assets.particle,
-                    u_color: Color::rgba(0.8, 0.8, 0.85, 0.7),
+                    u_color: Rgba::new(0.8, 0.8, 0.85, 0.7),
                 },
-                geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
+                self.camera.uniforms(framebuffer_size.map(|x| x as f32)),
             ),
             &ugli::DrawParameters {
-                blend_mode: Some(default()),
+                blend_mode: Some(ugli::BlendMode::straight_alpha()),
                 ..default()
             },
         );
@@ -1066,12 +1067,12 @@ impl geng::State for Game {
                 ugli::uniforms! {
                     u_time: self.time,
                     u_texture: &self.assets.particle,
-                    u_color: Color::rgb(1.0, 0.5, 0.0),
+                    u_color: Rgba::opaque(1.0, 0.5, 0.0),
                 },
-                geng::camera2d_uniforms(&self.camera, framebuffer_size.map(|x| x as f32)),
+                self.camera.uniforms(framebuffer_size.map(|x| x as f32)),
             ),
             &ugli::DrawParameters {
-                blend_mode: Some(default()),
+                blend_mode: Some(ugli::BlendMode::straight_alpha()),
                 ..default()
             },
         );
@@ -1079,8 +1080,8 @@ impl geng::State for Game {
         for player in &self.interpolated_players {
             self.draw_shadow(
                 framebuffer,
-                Mat3::translate(player.position) * Mat3::scale_uniform(player.radius),
-                Color::rgba(0.5, 0.5, 0.5, 0.5),
+                mat3::translate(player.position) * mat3::scale_uniform(player.radius),
+                Rgba::new(0.5, 0.5, 0.5, 0.5),
             );
         }
         if true {
@@ -1093,8 +1094,8 @@ impl geng::State for Game {
                 }
                 self.draw_shadow(
                     framebuffer,
-                    Mat3::translate(obstacle.position) * Mat3::scale_uniform(obstacle.radius),
-                    Color::rgba(0.5, 0.5, 0.5, 0.5),
+                    mat3::translate(obstacle.position) * mat3::scale_uniform(obstacle.radius),
+                    Rgba::new(0.5, 0.5, 0.5, 0.5),
                 );
             }
         }
@@ -1107,8 +1108,8 @@ impl geng::State for Game {
             self.draw_texture(
                 framebuffer,
                 &self.assets.spawn,
-                Mat3::translate(pos + vec2(0.0, 0.5)) * Mat3::scale_uniform(t),
-                Color::rgba(0.5, 0.5, 1.0, 1.0 - t),
+                mat3::translate(pos + vec2(0.0, 0.5)) * mat3::scale_uniform(t),
+                Rgba::new(0.5, 0.5, 1.0, 1.0 - t),
             );
         }
 
@@ -1122,39 +1123,39 @@ impl geng::State for Game {
             self.draw_obstacle(
                 framebuffer,
                 &self.assets.obstacles[obstacle.index],
-                Mat3::translate(obstacle.position) * Mat3::scale_uniform(obstacle.radius),
-                Color::WHITE,
+                mat3::translate(obstacle.position) * mat3::scale_uniform(obstacle.radius),
+                Rgba::WHITE,
             );
         }
 
         if let Some(position) = model.avalanche_position {
-            self.geng.draw_2d(
+            self.geng.draw2d().draw2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::Polygon::new_gradient(vec![
-                    draw_2d::ColoredVertex {
+                &draw2d::Polygon::new_gradient(vec![
+                    draw2d::ColoredVertex {
                         a_pos: vec2(self.camera.center.x - view_width, position - 3.0),
                         a_color: c2,
                     },
-                    draw_2d::ColoredVertex {
+                    draw2d::ColoredVertex {
                         a_pos: vec2(self.camera.center.x - view_width, position),
                         a_color: c1,
                     },
-                    draw_2d::ColoredVertex {
+                    draw2d::ColoredVertex {
                         a_pos: vec2(self.camera.center.x + view_width, position),
                         a_color: c1,
                     },
-                    draw_2d::ColoredVertex {
+                    draw2d::ColoredVertex {
                         a_pos: vec2(self.camera.center.x + view_width, position - 3.0),
                         a_color: c2,
                     },
                 ]),
             );
-            self.geng.draw_2d(
+            self.geng.draw2d().draw2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::Quad::new(
-                    AABB::point(vec2(self.camera.center.x, position))
+                &draw2d::Quad::new(
+                    Aabb2::point(vec2(self.camera.center.x, position))
                         .extend_left(50.0)
                         .extend_right(50.0)
                         .extend_up(100.0),
@@ -1166,22 +1167,22 @@ impl geng::State for Game {
             if model.avalanche_position.is_some()
                 && matches!(my_player.state, PlayerState::SpawnWalk)
             {
-                self.geng.draw_2d(
+                self.geng.draw2d().draw2d(
                     framebuffer,
                     &self.camera,
-                    &draw_2d::TexturedQuad::new(
-                        AABB::<f32>::point(self.camera.center + vec2(0.0, -4.0)).extend_symmetric(
+                    &draw2d::TexturedQuad::new(
+                        Aabb2::<f32>::point(self.camera.center + vec2(0.0, -4.0)).extend_symmetric(
                             self.assets.spectating_text.size().map(|x| x as f32) * 0.05,
                         ),
                         &self.assets.spectating_text,
                     ),
                 );
             } else if my_player.state == PlayerState::Walk {
-                self.geng.draw_2d(
+                self.geng.draw2d().draw2d(
                     framebuffer,
                     &self.camera,
-                    &draw_2d::TexturedQuad::new(
-                        AABB::<f32>::point(self.camera.center + vec2(0.0, -4.0))
+                    &draw2d::TexturedQuad::new(
+                        Aabb2::<f32>::point(self.camera.center + vec2(0.0, -4.0))
                             .extend_symmetric(self.assets.walk.size().map(|x| x as f32) * 0.05),
                         &self.assets.walk,
                     ),
@@ -1206,7 +1207,7 @@ impl geng::State for Game {
                     0.5,
                     &player.name,
                     0.5,
-                    Color::WHITE,
+                    Rgba::WHITE,
                 );
             }
         }
@@ -1226,7 +1227,7 @@ impl geng::State for Game {
                     ugli::ColorAttachment::Texture(&mut texture),
                 );
                 let framebuffer = &mut framebuffer;
-                ugli::clear(framebuffer, Some(Color::TRANSPARENT_WHITE), None);
+                ugli::clear(framebuffer, Some(Rgba::TRANSPARENT_WHITE), None, None);
                 let vs: Vec<_> = model
                     .track
                     .query_shape(
@@ -1240,10 +1241,10 @@ impl geng::State for Game {
                     })
                     .collect();
                 if vs.len() >= 3 {
-                    self.geng.draw_2d(
+                    self.geng.draw2d().draw2d(
                         framebuffer,
                         &minimap_camera,
-                        &draw_2d::Polygon::strip(vs, Color::BLACK),
+                        &draw2d::Polygon::strip(vs, Rgba::BLACK),
                     );
                 }
                 let player_size = 5.0;
@@ -1251,27 +1252,27 @@ impl geng::State for Game {
                     if player.id == self.player_id {
                         continue;
                     }
-                    self.geng.draw_2d(
+                    self.geng.draw2d().draw2d(
                         framebuffer,
                         &minimap_camera,
-                        &draw_2d::Ellipse::circle(player.position, player_size, Color::BLUE),
+                        &draw2d::Ellipse::circle(player.position, player_size, Rgba::BLUE),
                     );
                 }
                 if let Some(player) = my_player {
-                    self.geng.draw_2d(
+                    self.geng.draw2d().draw2d(
                         framebuffer,
                         &minimap_camera,
-                        &draw_2d::Ellipse::circle(player.position, player_size, Color::GREEN),
+                        &draw2d::Ellipse::circle(player.position, player_size, Rgba::GREEN),
                     );
                 }
                 if let Some(avalanche_position) = model.avalanche_position {
-                    self.geng.draw_2d(
+                    self.geng.draw2d().draw2d(
                         framebuffer,
                         &minimap_camera,
-                        &draw_2d::Quad::new(
-                            AABB::point(vec2(minimap_camera.center.x, avalanche_position))
+                        &draw2d::Quad::new(
+                            Aabb2::point(vec2(minimap_camera.center.x, avalanche_position))
                                 .extend_symmetric(vec2(minimap_camera.fov, 5.0)),
-                            Color::RED,
+                            Rgba::RED,
                         ),
                     );
                 }
@@ -1279,27 +1280,27 @@ impl geng::State for Game {
             if self.minimap_full {
                 let size = framebuffer_size.y as f32;
                 let size = vec2(size, size);
-                self.geng.draw_2d(
+                self.geng.draw2d().draw2d(
                     framebuffer,
                     &geng::PixelPerfectCamera,
-                    &draw_2d::TexturedQuad::colored(
-                        AABB::point(framebuffer_size.map(|x| x as f32) / 2.0)
+                    &draw2d::TexturedQuad::colored(
+                        Aabb2::point(framebuffer_size.map(|x| x as f32) / 2.0)
                             .extend_symmetric(size / 2.0),
                         &texture,
-                        Color::rgba(1.0, 1.0, 1.0, 0.2),
+                        Rgba::new(1.0, 1.0, 1.0, 0.2),
                     ),
                 );
             } else {
                 let size = framebuffer_size.y as f32 / 3.0;
                 let size = vec2(size, size);
-                self.geng.draw_2d(
+                self.geng.draw2d().draw2d(
                     framebuffer,
                     &geng::PixelPerfectCamera,
-                    &draw_2d::TexturedQuad::colored(
-                        AABB::point(framebuffer_size.map(|x| x as f32) - size)
+                    &draw2d::TexturedQuad::colored(
+                        Aabb2::point(framebuffer_size.map(|x| x as f32) - size)
                             .extend_positive(size),
                         &texture,
-                        Color::rgba(1.0, 1.0, 1.0, 0.5),
+                        Rgba::new(1.0, 1.0, 1.0, 0.5),
                     ),
                 );
             }
@@ -1308,14 +1309,14 @@ impl geng::State for Game {
         if let Some(pos) = model.avalanche_position {
             let pos = pos - self.camera.center.y - self.camera.fov / 2.0;
             let alpha = (1.0 - (pos - 1.0) / 5.0).clamp(0.0, 1.0);
-            self.geng.draw_2d(
+            self.geng.draw2d().draw2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::TexturedQuad::colored(
-                    AABB::<f32>::point(self.camera.center + vec2(0.0, 8.0))
+                &draw2d::TexturedQuad::colored(
+                    Aabb2::<f32>::point(self.camera.center + vec2(0.0, 8.0))
                         .extend_symmetric(self.assets.ava_warning.size().map(|x| x as f32) * 0.05),
                     &self.assets.ava_warning,
-                    Color::rgba(1.0, 1.0, 1.0, alpha),
+                    Rgba::new(1.0, 1.0, 1.0, alpha),
                 ),
             );
         } else if let Some((name, score)) = &model.winner {
@@ -1327,7 +1328,7 @@ impl geng::State for Game {
                     1.0,
                     &format!("winner is {}", name),
                     0.5,
-                    Color::WHITE,
+                    Rgba::WHITE,
                 );
             }
             self.assets.font.draw(
@@ -1337,7 +1338,7 @@ impl geng::State for Game {
                 1.0,
                 &format!("winner scored {}", score),
                 0.5,
-                Color::WHITE,
+                Rgba::WHITE,
             );
         }
         if let Some(target_player) = target_player {
@@ -1356,7 +1357,7 @@ impl geng::State for Game {
                     1.0,
                     &format!("score {}", target_player.score()),
                     0.5,
-                    Color::WHITE,
+                    Rgba::WHITE,
                 );
             } else {
                 self.ride_sound_effect.set_volume(0.0);
@@ -1379,15 +1380,15 @@ impl geng::State for Game {
         }
 
         if let Some(time) = self.explosion_time {
-            self.geng.draw_2d(
+            self.geng.draw2d().draw2d(
                 framebuffer,
                 &self.camera,
-                &draw_2d::TexturedQuad::colored(
-                    AABB::<f32>::point(vec2(0.0, 5.0)).extend_symmetric(
+                &draw2d::TexturedQuad::colored(
+                    Aabb2::<f32>::point(vec2(0.0, 5.0)).extend_symmetric(
                         self.assets.boom.size().map(|x| x as f32) * 0.05 * (1.0 + time),
                     ),
                     &self.assets.boom,
-                    Color::rgba(1.0, 1.0, 1.0, 1.0 - time.sqr()),
+                    Rgba::new(1.0, 1.0, 1.0, 1.0 - time.sqr()),
                 ),
             );
         }

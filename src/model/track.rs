@@ -17,7 +17,7 @@ pub struct TrackConfig {
 pub struct Obstacle {
     pub index: usize,
     pub radius: f32,
-    pub position: Vec2<f32>,
+    pub position: vec2<f32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

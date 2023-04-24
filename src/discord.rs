@@ -1,7 +1,7 @@
 use super::*;
 
 pub fn send_activity(text: &str) {
-    info!("{}", text);
+    log::info!("{}", text);
     #[cfg(not(target_arch = "wasm32"))]
     {
         if let Ok(url) = std::env::var("DISCORD_ACTIVITY_WEBHOOK") {
@@ -14,7 +14,7 @@ pub fn send_activity(text: &str) {
                 }
                 let data = Data { content: text };
                 if let Err(e) = client.post(url).json(&data).send() {
-                    error!("{}", e);
+                    log::error!("{}", e);
                 }
             });
         }

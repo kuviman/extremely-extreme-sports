@@ -8,7 +8,7 @@ pub struct ConnectingState<T: Model, G: geng::State> {
     connection: Option<Pin<Box<dyn Future<Output = (T::PlayerId, T::SharedState, Connection<T>)>>>>,
     #[allow(clippy::type_complexity)]
     f: Option<Box<dyn FnOnce(T::PlayerId, Remote<T>) -> G + 'static>>,
-    transition: Option<geng::Transition>,
+    transition: Option<geng::state::Transition>,
 }
 
 impl<T: Model, G: geng::State> ConnectingState<T, G> {
@@ -18,13 +18,14 @@ impl<T: Model, G: geng::State> ConnectingState<T, G> {
         f: impl FnOnce(T::PlayerId, Remote<T>) -> G + 'static,
     ) -> Self {
         let connection = Box::pin(net::client::connect(addr).then(|connection| async move {
+            let connection = connection.unwrap();
             let (message, connection) = connection.into_future().await;
-            let player_id = match message {
+            let player_id = match message.transpose().unwrap() {
                 Some(ServerMessage::PlayerId(id)) => id,
                 _ => unreachable!(),
             };
             let (message, connection) = connection.into_future().await;
-            let initial_state = match message {
+            let initial_state = match message.transpose().unwrap() {
                 Some(ServerMessage::Full(state)) => state,
                 _ => unreachable!(),
             };
@@ -42,15 +43,14 @@ impl<T: Model, G: geng::State> ConnectingState<T, G> {
 impl<T: Model, G: geng::State> geng::State for ConnectingState<T, G> {
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         let framebuffer_size = framebuffer.size();
-        ugli::clear(framebuffer, Some(Color::WHITE), None);
+        ugli::clear(framebuffer, Some(Rgba::WHITE), None, None);
         self.geng.default_font().draw(
             framebuffer,
             &geng::PixelPerfectCamera,
             "Connecting to the server...",
-            framebuffer_size.map(|x| x as f32) / 2.0,
-            geng::TextAlign::CENTER,
-            40.0,
-            Color::BLACK,
+            vec2::splat(geng::TextAlign::CENTER),
+            mat3::translate(framebuffer_size.map(|x| x as f32) / 2.0) * mat3::scale_uniform(40.0),
+            Rgba::BLACK,
         );
     }
     fn handle_event(&mut self, event: geng::Event) {
@@ -60,10 +60,10 @@ impl<T: Model, G: geng::State> geng::State for ConnectingState<T, G> {
                 key: geng::Key::Escape
             }
         ) {
-            self.transition = Some(geng::Transition::Pop);
+            self.transition = Some(geng::state::Transition::Pop);
         }
     }
-    fn transition(&mut self) -> Option<geng::Transition> {
+    fn transition(&mut self) -> Option<geng::state::Transition> {
         if let Some(connection) = &mut self.connection {
             if let std::task::Poll::Ready((player_id, initial_state, connection)) = connection
                 .as_mut()
@@ -71,7 +71,10 @@ impl<T: Model, G: geng::State> geng::State for ConnectingState<T, G> {
                     futures::task::noop_waker_ref(),
                 ))
             {
-                return Some(geng::Transition::Switch(Box::new(self.f.take().unwrap()(
+                return Some(geng::state::Transition::Switch(Box::new(self
+                    .f
+                    .take()
+                    .unwrap()(
                     player_id,
                     Remote {
                         connection: Rc::new(RefCell::new(connection)),

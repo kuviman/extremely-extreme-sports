@@ -28,9 +28,9 @@ impl From<ugli::Texture> for Texture {
     }
 }
 
-impl geng::LoadAsset for Texture {
-    fn load(geng: &Geng, path: &std::path::Path) -> geng::AssetFuture<Self> {
-        let texture = ugli::Texture::load(geng, path);
+impl geng::asset::Load for Texture {
+    fn load(manager: &geng::asset::Manager, path: &std::path::Path) -> geng::asset::Future<Self> {
+        let texture = ugli::Texture::load(manager, path);
         async move { Ok(texture.await?.into()) }.boxed_local()
     }
 
