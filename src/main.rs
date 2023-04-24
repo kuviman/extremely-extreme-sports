@@ -116,7 +116,7 @@ fn main() {
             let geng = geng.clone();
             move |player_id, model| game_constructor(&geng, player_id, model)
         });
-        geng.run(state);
+        geng.run_loading(async move { state });
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some((server_handle, server_thread)) = server {
