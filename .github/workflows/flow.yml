@@ -11,15 +11,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - run: cargo geng build --release --target wasm32-unknown-unknown
+      - run: cargo geng build --release --platform web
       - name: Upload artifacts (web)
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: web
           path: target/geng
       - run: cargo geng build --release
       - name: Upload artifacts (linux)
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: linux
           path: target/geng
@@ -32,7 +32,7 @@ jobs:
       - build
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
       - name: Deploy GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
