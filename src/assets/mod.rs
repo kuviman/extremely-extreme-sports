@@ -27,15 +27,15 @@ async fn load_equipment(
     manager: &geng::asset::Manager,
     base_path: std::path::PathBuf,
 ) -> anyhow::Result<HashMap<String, ugli::Texture>> {
-    let json: String = geng::asset::Load::load(manager, &base_path.join("_list.json")).await?;
+    let json: String = manager.load_string(base_path.join("_list.json")).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
-    let result =
-        future::join_all(list.iter().map(|path| {
-            geng::asset::Load::load(manager, &base_path.join(format!("{}.png", path)))
-        }))
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
+    let result = future::join_all(
+        list.iter()
+            .map(|path| manager.load(base_path.join(format!("{}.png", path)))),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
     Ok(list.into_iter().zip(result).collect())
 }
 
@@ -43,15 +43,15 @@ async fn load_items(
     manager: &geng::asset::Manager,
     base_path: std::path::PathBuf,
 ) -> anyhow::Result<HashMap<String, skin::ItemConfig>> {
-    let json: String = geng::asset::Load::load(manager, &base_path.join("_list.json")).await?;
+    let json: String = manager.load_string(base_path.join("_list.json")).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
-    let result =
-        future::join_all(list.iter().map(|path| {
-            geng::asset::Load::load(manager, &base_path.join(format!("{}.json", path)))
-        }))
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
+    let result = future::join_all(
+        list.iter()
+            .map(|path| manager.load(base_path.join(format!("{}.json", path)))),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
     Ok(list.into_iter().zip(result).collect())
 }
 
@@ -60,15 +60,19 @@ async fn load_secret(
     path: std::path::PathBuf,
 ) -> anyhow::Result<HashMap<String, skin::SecretConfig>> {
     let base_path = path.join("secret");
-    let json: String = geng::asset::Load::load(manager, &base_path.join("_list.json")).await?;
+    let json: String =
+        geng::asset::Load::load(manager, &base_path.join("_list.json"), &default()).await?;
     let list: Vec<String> = serde_json::from_str(&json)?;
-    let result =
-        future::join_all(list.iter().map(|path| {
-            geng::asset::Load::load(manager, &base_path.join(path).join("config.json"))
-        }))
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
+    let result = future::join_all(list.iter().map(|path| {
+        geng::asset::Load::load(
+            manager,
+            &base_path.join(path).join("config.json"),
+            &default(),
+        )
+    }))
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
     Ok(list.into_iter().zip(result).collect())
 }
 
@@ -109,9 +113,9 @@ pub struct Assets {
 impl Assets {
     pub async fn process(&mut self, geng: &Geng) {
         self.border.set_wrap_mode(ugli::WrapMode::Repeat);
-        self.ride_sound.set_looped(true);
-        self.avalanche_sound.set_looped(true);
-        self.music.set_looped(true);
+        self.ride_sound.looped = true;
+        self.avalanche_sound.looped = true;
+        self.music.looped = true;
         let mut paths = Vec::new();
         paths.extend(
             self.player
@@ -181,14 +185,13 @@ impl Assets {
                 }
             }
         }
-        let result =
-            future::join_all(paths.iter().map(|path| {
-                geng::asset::Load::load(geng.asset_manager(), &assets_path().join(path))
-            }))
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let result = future::join_all(paths.iter().map(|path| {
+            geng::asset::Load::load(geng.asset_manager(), &assets_path().join(path), &default())
+        }))
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
         for (path, texture) in paths.into_iter().zip(result) {
             self.textures.insert(path.to_owned(), texture);
         }
@@ -200,17 +203,18 @@ async fn load_obstacles(
     base_path: &std::path::Path,
 ) -> anyhow::Result<Vec<ObstacleAssets>> {
     let list =
-        <String as geng::asset::Load>::load(manager, &base_path.join("obstacles.json")).await?;
+        <String as geng::asset::Load>::load(manager, &base_path.join("obstacles.json"), &default())
+            .await?;
     let list: Vec<String> = serde_json::from_str(&list)?;
     let mut result = Vec::new();
     for t in list {
-        result.push(geng::asset::Load::load(manager, &base_path.join(t)).await?);
+        result.push(geng::asset::Load::load(manager, &base_path.join(t), &default()).await?);
     }
     Ok(result)
 }
 
 #[derive(geng::asset::Load, Deserialize)]
-#[load(json)]
+#[load(serde = "json")]
 pub struct ObstacleConfig {
     pub hitbox_origin: vec2<f32>,
     pub hitbox_radius: f32,
@@ -223,17 +227,29 @@ pub struct ObstacleAssets {
 }
 
 impl geng::asset::Load for ObstacleAssets {
-    fn load(manager: &geng::asset::Manager, path: &std::path::Path) -> geng::asset::Future<Self> {
-        let config = <ObstacleConfig as geng::asset::Load>::load(manager, &{
-            let mut path = path.to_owned();
-            path.set_extension("json");
-            path
-        });
-        let texture = <Texture as geng::asset::Load>::load(manager, &{
-            let mut path = path.to_owned();
-            path.set_extension("png");
-            path
-        });
+    fn load(
+        manager: &geng::asset::Manager,
+        path: &std::path::Path,
+        _options: &(),
+    ) -> geng::asset::Future<Self> {
+        let config = <ObstacleConfig as geng::asset::Load>::load(
+            manager,
+            &{
+                let mut path = path.to_owned();
+                path.set_extension("json");
+                path
+            },
+            &default(),
+        );
+        let texture = <Texture as geng::asset::Load>::load(
+            manager,
+            &{
+                let mut path = path.to_owned();
+                path.set_extension("png");
+                path
+            },
+            &default(),
+        );
         async move {
             let mut result = Self {
                 config: config.await?,
@@ -245,6 +261,6 @@ impl geng::asset::Load for ObstacleAssets {
         }
         .boxed_local()
     }
-
     const DEFAULT_EXT: Option<&'static str> = None;
+    type Options = ();
 }

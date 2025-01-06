@@ -98,8 +98,8 @@ impl Lobby {
             geng: geng.clone(),
             camera: geng::Camera2d {
                 center: vec2(0.0, 0.5),
-                rotation: 0.0,
-                fov: 2.0,
+                rotation: Angle::ZERO,
+                fov: geng::Camera2dFov::Vertical(2.0),
             },
             assets: assets.clone(),
             player_id,
@@ -364,8 +364,9 @@ impl Lobby {
 impl geng::State for Lobby {
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         self.framebuffer_size = framebuffer.size();
-        self.camera.fov =
-            2.0f32.max(2.7 * framebuffer.size().y as f32 / framebuffer.size().x as f32);
+        self.camera.fov = Camera2dFov::Vertical(
+            2.0f32.max(2.7 * framebuffer.size().y as f32 / framebuffer.size().x as f32),
+        );
         ugli::clear(framebuffer, Some(Rgba::WHITE), None, None);
 
         match self.state {
@@ -472,7 +473,7 @@ impl geng::State for Lobby {
                     &self.model.get().config,
                     &skin::DrawInstance {
                         position: vec2(-0.5, 0.0),
-                        rotation: 0.0,
+                        rotation: Angle::ZERO,
                         velocity: vec2::ZERO,
                         state: PlayerState::SpawnWalk,
                     },
@@ -525,7 +526,7 @@ impl geng::State for Lobby {
             self.handle_ui(message);
         }
         match event {
-            geng::Event::KeyDown { key } => match key {
+            geng::Event::KeyPress { key } => match key {
                 geng::Key::Space => {}
                 geng::Key::Backspace => {
                     self.handle_ui(UiMessage::Delete);
@@ -544,13 +545,37 @@ impl geng::State for Lobby {
                     }
                 }
             },
-            geng::Event::MouseDown {
-                position,
+            geng::Event::MousePress {
                 button: geng::MouseButton::Left,
             } => {
+                if let Some(position) = self.geng.window().cursor_position() {
+                    self.mouse = self.camera.screen_to_world(
+                        self.framebuffer_size.map(|x| x as f32),
+                        position.map(|x| x as f32),
+                    );
+                    if Aabb2::point(vec2(0.5, 1.1))
+                        .extend_up(0.1)
+                        .extend_left(2.0)
+                        .extend_right(2.0)
+                        .contains(self.mouse)
+                    {
+                        self.state = match self.state {
+                            State::Keyboard => State::Main,
+                            _ => State::Keyboard,
+                        };
+                    }
+                }
+            }
+            geng::Event::CursorMove { position, .. } => {
                 self.mouse = self.camera.screen_to_world(
                     self.framebuffer_size.map(|x| x as f32),
                     position.map(|x| x as f32),
+                );
+            }
+            geng::Event::TouchStart(touch) => {
+                self.mouse = self.camera.screen_to_world(
+                    self.framebuffer_size.map(|x| x as f32),
+                    touch.position.map(|x| x as f32),
                 );
                 if Aabb2::point(vec2(0.5, 1.1))
                     .extend_up(0.1)
@@ -564,33 +589,10 @@ impl geng::State for Lobby {
                     };
                 }
             }
-            geng::Event::MouseMove { position, .. } => {
+            geng::Event::TouchMove { 0: touch } => {
                 self.mouse = self.camera.screen_to_world(
                     self.framebuffer_size.map(|x| x as f32),
-                    position.map(|x| x as f32),
-                );
-            }
-            geng::Event::TouchStart { touches } => {
-                self.mouse = self.camera.screen_to_world(
-                    self.framebuffer_size.map(|x| x as f32),
-                    touches[0].position.map(|x| x as f32),
-                );
-                if Aabb2::point(vec2(0.5, 1.1))
-                    .extend_up(0.1)
-                    .extend_left(2.0)
-                    .extend_right(2.0)
-                    .contains(self.mouse)
-                {
-                    self.state = match self.state {
-                        State::Keyboard => State::Main,
-                        _ => State::Keyboard,
-                    };
-                }
-            }
-            geng::Event::TouchMove { touches } => {
-                self.mouse = self.camera.screen_to_world(
-                    self.framebuffer_size.map(|x| x as f32),
-                    touches[0].position.map(|x| x as f32),
+                    touch.position.map(|x| x as f32),
                 );
             }
             _ => {}

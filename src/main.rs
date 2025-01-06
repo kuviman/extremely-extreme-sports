@@ -31,6 +31,8 @@ pub struct Opt {
     spectator: bool,
     #[clap(long)]
     auto_sound: bool,
+    #[clap(flatten)]
+    geng: geng::CliArgs,
 }
 
 struct LoadingScreen {
@@ -65,6 +67,7 @@ fn main() {
     geng::setup_panic_handler();
     let mut opt: Opt = cli::parse();
     if opt.connect.is_none() && opt.server.is_none() {
+        #[allow(clippy::option_env_unwrap)]
         if cfg!(target_arch = "wasm32") {
             opt.connect = Some(
                 option_env!("CONNECT")
@@ -107,16 +110,28 @@ fn main() {
             None
         };
 
-        let geng = Geng::new_with(geng::ContextOptions {
-            title: "Extremely Extreme Sports".to_owned(),
-            antialias: false,
-            ..default()
-        });
-        let state = simple_net::ConnectingState::new(&geng, opt.connect.as_deref().unwrap(), {
-            let geng = geng.clone();
-            move |player_id, model| game_constructor(&geng, player_id, model)
-        });
-        geng.run_loading(async move { state });
+        Geng::run_with(
+            &{
+                let mut options = geng::ContextOptions {
+                    window: {
+                        let mut options = geng::window::Options::new("Extremely Extreme Sports");
+                        options.antialias = false;
+                        options
+                    },
+                    ..default()
+                };
+                options.with_cli(&opt.geng);
+                options
+            },
+            |geng| async move {
+                let state =
+                    simple_net::ConnectingState::new(&geng, opt.connect.as_deref().unwrap(), {
+                        let geng = geng.clone();
+                        move |player_id, model| game_constructor(&geng, player_id, model)
+                    });
+                geng.run_state(state).await
+            },
+        );
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some((server_handle, server_thread)) = server {

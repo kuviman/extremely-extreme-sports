@@ -92,7 +92,11 @@ impl Font {
 }
 
 impl geng::asset::Load for Font {
-    fn load(manager: &geng::asset::Manager, path: &std::path::Path) -> geng::asset::Future<Self> {
+    fn load(
+        manager: &geng::asset::Manager,
+        path: &std::path::Path,
+        _options: &(),
+    ) -> geng::asset::Future<Self> {
         let manager = manager.clone();
         let path = path.to_owned();
         async move {
@@ -103,6 +107,7 @@ impl geng::asset::Load for Font {
                 textures.push(<ugli::Texture as geng::asset::Load>::load(
                     &manager,
                     &path.join(format!("{}.png", c)),
+                    &default(),
                 ));
             }
             let mut textures: Vec<ugli::Texture> = futures::future::join_all(textures)
@@ -121,6 +126,6 @@ impl geng::asset::Load for Font {
         }
         .boxed_local()
     }
-
     const DEFAULT_EXT: Option<&'static str> = None;
+    type Options = ();
 }

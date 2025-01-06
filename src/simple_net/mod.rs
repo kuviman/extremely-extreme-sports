@@ -10,7 +10,7 @@ pub mod server;
 pub use server::*;
 
 pub trait Model: 'static + Send {
-    type SharedState: Diff + net::Message;
+    type SharedState: Diff<Delta: net::Message + Clone> + net::Message + PartialEq + Clone;
     fn shared_state(&self) -> &Self::SharedState;
     type PlayerId: net::Message + Clone;
     type Message: net::Message;

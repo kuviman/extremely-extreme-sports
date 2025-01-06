@@ -16,6 +16,12 @@ impl WiggleThing for vec2<f32> {
     }
 }
 
+impl WiggleThing for Angle<f32> {
+    fn zero() -> Self {
+        Angle::ZERO
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct Wiggle<T> {
     pub base: T,
@@ -86,12 +92,12 @@ pub struct Part {
     pub texture: String,
     pub origin: vec2<f32>,
     pub position: Inter<vec2<f32>>,
-    pub rotation: Option<Inter<f32>>,
+    pub rotation: Option<Inter<Angle<f32>>>,
     pub scale: Option<Inter<vec2<f32>>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::asset::Load)]
-#[load(json)]
+#[load(serde = "json")]
 pub struct SecretConfig {
     pub parts: Option<Vec<Part>>,
     pub hat: Option<String>,
@@ -102,14 +108,14 @@ pub struct SecretConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::asset::Load)]
-#[load(json)]
+#[load(serde = "json")]
 pub struct ItemConfig {
     pub parts: Vec<Part>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, geng::asset::Load)]
 // #[serde(tag = "type")]
-#[load(json)]
+#[load(serde = "json")]
 pub struct Config {
     pub secret: Option<String>,
     pub hat: Option<String>,
@@ -188,7 +194,7 @@ pub struct Renderer {
 
 pub struct DrawInstance {
     pub position: vec2<f32>,
-    pub rotation: f32,
+    pub rotation: Angle<f32>,
     pub velocity: vec2<f32>,
     pub state: PlayerState,
 }
@@ -328,7 +334,7 @@ impl Renderer {
                         crash_position
                             + ski_velocity * t
                             + vec2(0.0, (1.0 - (t * 2.0 - 1.0).sqr()) * 5.0),
-                    ) * mat3::rotate(ski_rotation + t * 5.0),
+                    ) * mat3::rotate(ski_rotation + Angle::from_radians(t * 5.0)),
                     Rgba::WHITE,
                 );
             } else {
@@ -341,16 +347,16 @@ impl Renderer {
         }
 
         let final_matrix = mat3::translate(draw_position)
-            * mat3::rotate(
+            * mat3::rotate(Angle::from_radians(
                 (match player.state {
                     PlayerState::Crash { timer, .. } => timer,
                     _ => 0.0,
                 } * 7.0)
                     .min(f32::PI / 2.0),
-            )
+            ))
             * mat3::scale_uniform(1.0 / 64.0);
         let turn = if let PlayerState::Ride { .. } = player.state {
-            player.rotation / config.player.rotation_limit
+            player.rotation.as_radians() / config.player.rotation_limit.as_radians()
         } else {
             player.velocity.x / config.player.max_walk_speed
         };

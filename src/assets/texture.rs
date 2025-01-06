@@ -4,8 +4,9 @@ use super::*;
 pub struct Texture(ugli::Texture);
 
 impl ugli::Uniform for Texture {
-    fn apply(&self, gl: &ugli::raw::Context, info: &ugli::UniformInfo) {
-        ugli::Texture::apply(self, gl, info)
+    type LifetimeErased = Self;
+    fn apply(&self, program: &ugli::Program, info: &ugli::UniformInfo) {
+        self.0.apply(program, info)
     }
 }
 
@@ -29,10 +30,14 @@ impl From<ugli::Texture> for Texture {
 }
 
 impl geng::asset::Load for Texture {
-    fn load(manager: &geng::asset::Manager, path: &std::path::Path) -> geng::asset::Future<Self> {
-        let texture = ugli::Texture::load(manager, path);
+    fn load(
+        manager: &geng::asset::Manager,
+        path: &std::path::Path,
+        _options: &(),
+    ) -> geng::asset::Future<Self> {
+        let texture = ugli::Texture::load(manager, path, &default());
         async move { Ok(texture.await?.into()) }.boxed_local()
     }
-
     const DEFAULT_EXT: Option<&'static str> = Some("png");
+    type Options = ();
 }

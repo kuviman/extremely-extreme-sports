@@ -39,8 +39,8 @@ impl Controller {
             mouse: vec2(0.0, 0.0),
             camera: geng::Camera2d {
                 center: vec2(0.0, 0.0),
-                rotation: 0.0,
-                fov: 1.0,
+                rotation: Angle::ZERO,
+                fov: geng::Camera2dFov::Vertical(1.0),
             },
             framebuffer_size: vec2(1.0, 1.0),
         }
@@ -85,27 +85,23 @@ impl Controller {
         buttons: Vec<Button<T>>,
     ) -> Vec<T> {
         match *event {
-            geng::Event::MouseMove { position, .. }
-            | geng::Event::MouseDown { position, .. }
-            | geng::Event::MouseUp { position, .. } => {
+            geng::Event::CursorMove { position, .. } => {
                 self.mouse = self
                     .camera
                     .screen_to_world(self.framebuffer_size, position.map(|x| x as f32));
             }
-            geng::Event::TouchStart { ref touches, .. }
-            | geng::Event::TouchMove { ref touches, .. }
-            | geng::Event::TouchEnd { ref touches, .. } => {
-                if let Some(touch) = touches.get(0) {
-                    self.mouse = self
-                        .camera
-                        .screen_to_world(self.framebuffer_size, touch.position.map(|x| x as f32));
-                }
+            geng::Event::TouchStart { 0: ref touch, .. }
+            | geng::Event::TouchMove { 0: ref touch, .. }
+            | geng::Event::TouchEnd { 0: ref touch, .. } => {
+                self.mouse = self
+                    .camera
+                    .screen_to_world(self.framebuffer_size, touch.position.map(|x| x as f32));
             }
             _ => {}
         }
         let mut result = Vec::new();
         match *event {
-            geng::Event::MouseUp {
+            geng::Event::MouseRelease {
                 button: geng::MouseButton::Left,
                 ..
             }

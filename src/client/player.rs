@@ -19,7 +19,7 @@ impl Player {
             }
             _ => {
                 let target_rotation =
-                    (self.input.x * config.rotation_limit).clamp_abs(config.rotation_limit);
+                    (config.rotation_limit * self.input.x).clamp_abs(config.rotation_limit);
                 self.rotation +=
                     (target_rotation - self.rotation).clamp_abs(config.rotation_speed * delta_time);
                 self.velocity.y += (-config.max_speed - self.velocity.y)
@@ -37,7 +37,7 @@ impl Player {
     pub fn respawn(&mut self) {
         *self = Player {
             position: vec2(thread_rng().gen_range(-10.0..=10.0), 0.0),
-            rotation: 0.0,
+            rotation: Angle::ZERO,
             velocity: vec2::ZERO,
             start_y: 0.0,
             state: PlayerState::SpawnWalk,

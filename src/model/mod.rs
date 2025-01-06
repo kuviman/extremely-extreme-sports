@@ -16,8 +16,8 @@ pub struct AvalancheConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PlayerConfig {
-    pub rotation_speed: f32,
-    pub rotation_limit: f32,
+    pub rotation_speed: Angle<f32>,
+    pub rotation_limit: Angle<f32>,
     pub max_speed: f32,
     pub max_walk_speed: f32,
     pub friction: f32,
@@ -39,21 +39,22 @@ pub struct Config {
 }
 
 #[derive(Debug, Serialize, Deserialize, Diff, Clone, PartialEq)]
+#[diff(derive = "Debug, Serialize, Deserialize, Clone")]
 pub struct SharedModel {
     pub tick: u64,
     pub next_id: Id,
-    #[diff = "eq"]
+    #[diff(mode = "eq")]
     pub config: Config,
     pub avalanche_position: Option<f32>,
     pub avalanche_speed: f32,
     pub players: Collection<Player>,
-    #[diff = "eq"]
+    #[diff(mode = "eq")]
     pub track: Track,
-    #[diff = "eq"]
+    #[diff(mode = "eq")]
     pub winner: Option<(String, i32)>,
-    #[diff = "eq"]
+    #[diff(mode = "eq")]
     pub highscores: HashMap<String, i32>,
-    #[diff = "eq"]
+    #[diff(mode = "eq")]
     pub scores: HashMap<String, i32>,
     pub reset_timer: f32,
 }
@@ -81,7 +82,7 @@ pub enum PlayerState {
     Crash {
         timer: f32,
         ski_velocity: vec2<f32>,
-        ski_rotation: f32,
+        ski_rotation: Angle<f32>,
         crash_position: vec2<f32>,
     },
     Parachute {
@@ -98,17 +99,18 @@ impl PlayerState {
 }
 
 #[derive(Debug, Serialize, Deserialize, HasId, Diff, Clone, PartialEq)]
+#[diff(derive = "Debug, Serialize, Deserialize, Clone, PartialEq")]
 pub struct Player {
     pub id: Id,
     pub start_y: f32,
     pub emote: Option<(f32, usize)>,
-    #[diff = "eq"]
+    #[diff(mode = "eq")]
     pub name: String,
     pub position: vec2<f32>,
-    #[diff = "eq"]
+    #[diff(mode = "eq")]
     pub config: skin::Config,
     pub radius: f32,
-    pub rotation: f32,
+    pub rotation: Angle<f32>,
     pub input: vec2<f32>,
     pub velocity: vec2<f32>,
     pub state: PlayerState,

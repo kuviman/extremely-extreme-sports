@@ -17,9 +17,9 @@ pub struct Game {
     next_update: f64,
     framebuffer_size: vec2<usize>,
     touch_control: Option<vec2<f32>>,
-    touches: usize,
+    touches: HashSet<u64>,
     time: f32,
-    volume: f64,
+    volume: f32,
     explosion_time: Option<f32>,
     last_model_tick: u64,
     geng: Geng,
@@ -100,12 +100,12 @@ impl Game {
             minimap_full: false,
             next_update: 0.0,
             music: Some(assets.music.play()),
-            touches: 0,
+            touches: HashSet::new(),
             touch_control: None,
             framebuffer_size: vec2(1, 1),
             interpolated_players: default(),
             time: 0.0,
-            volume: preferences::load::<f64>("volume.json")
+            volume: preferences::load::<f32>("volume.json")
                 .unwrap_or(0.5)
                 .clamp(0.0, 1.0),
             show_player_names: true,
@@ -114,8 +114,8 @@ impl Game {
             assets: assets.clone(),
             camera: geng::Camera2d {
                 center: vec2(0.0, 0.0),
-                rotation: 0.0,
-                fov: 20.0,
+                rotation: Angle::ZERO,
+                fov: geng::Camera2dFov::Vertical(20.0),
             },
             spawn_particles: Vec::new(),
             player_id,
@@ -141,7 +141,7 @@ impl Game {
                             0.0,
                         ),
                         radius: 0.3,
-                        rotation: 0.0,
+                        rotation: Angle::ZERO,
                         input: vec2::ZERO,
                         velocity: vec2::ZERO,
                     });
@@ -150,13 +150,13 @@ impl Game {
             },
             model,
             ride_sound_effect: {
-                let mut effect = assets.ride_sound.effect();
+                let mut effect = assets.ride_sound.effect(geng.audio().default_type());
                 effect.set_volume(0.0);
                 effect.play();
                 effect
             },
             avalanche_sound_effect: {
-                let mut effect = assets.avalanche_sound.effect();
+                let mut effect = assets.avalanche_sound.effect(geng.audio().default_type());
                 effect.set_volume(0.0);
                 effect.play();
                 effect
@@ -183,8 +183,8 @@ impl Game {
             next_particle: 0.0,
             ui_camera: geng::Camera2d {
                 center: vec2(0.0, 0.0),
-                rotation: 0.0,
-                fov: 10.0,
+                rotation: Angle::ZERO,
+                fov: geng::Camera2dFov::Vertical(10.0),
             },
             ui_controller: ui::Controller::new(geng, assets),
             transition: None,
@@ -313,9 +313,9 @@ impl Game {
         }
     }
     fn play_sound(&self, sound: &geng::Sound, pos: vec2<f32>) {
-        let mut effect = sound.effect();
+        let mut effect = sound.effect(self.geng.audio().default_type());
         effect.set_volume(
-            (1.0 - ((pos - self.camera.center).len() / 10.0).sqr()).max(0.0) as f64 * self.volume,
+            (1.0 - ((pos - self.camera.center).len() / 10.0).sqr()).max(0.0) as f32 * self.volume,
         );
         effect.play()
     }
@@ -408,7 +408,7 @@ impl geng::State for Game {
             self.music = Some(self.assets.music.play());
         }
         match event {
-            geng::Event::KeyDown { key } => match key {
+            geng::Event::KeyPress { key } => match key {
                 geng::Key::M => {
                     self.minimap_full = !self.minimap_full;
                 }
@@ -421,50 +421,47 @@ impl geng::State for Game {
                 geng::Key::R => {
                     self.players.get_mut(&self.player_id).unwrap().respawn();
                 }
-                geng::Key::Num1 => {
+                geng::Key::Digit1 => {
                     self.players.get_mut(&self.player_id).unwrap().emote = Some((0.0, 0));
                 }
-                geng::Key::Num2 => {
+                geng::Key::Digit2 => {
                     self.players.get_mut(&self.player_id).unwrap().emote = Some((0.0, 1));
                 }
-                geng::Key::Num3 => {
+                geng::Key::Digit3 => {
                     self.players.get_mut(&self.player_id).unwrap().emote = Some((0.0, 2));
                 }
-                geng::Key::Num4 => {
+                geng::Key::Digit4 => {
                     self.players.get_mut(&self.player_id).unwrap().emote = Some((0.0, 3));
                 }
                 _ => {}
             },
-            geng::Event::MouseDown {
-                position,
+            geng::Event::MousePress {
                 button: geng::MouseButton::Left,
             } => {
-                self.touch_control = Some(position.map(|x| x as f32));
+                if let Some(position) = self.geng.window().cursor_position() {
+                    self.touch_control = Some(position.map(|x| x as f32));
+                    if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
+                        self.press_space();
+                    }
+                }
+            }
+            geng::Event::TouchStart(touch) => {
+                self.touches.insert(touch.id);
+                self.touch_control = Some(touch.position.map(|x| x as f32));
                 if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
                     self.press_space();
                 }
             }
-            geng::Event::TouchStart { touches } => {
-                self.touches = touches.len();
-                self.touch_control = Some(touches[0].position.map(|x| x as f32));
-                if self.touch_control.unwrap().y > self.framebuffer_size.y as f32 / 2.0 {
-                    self.press_space();
-                }
+            geng::Event::TouchMove(touch) => {
+                self.touch_control = Some(touch.position.map(|x| x as f32));
             }
-            geng::Event::TouchMove { touches } => {
-                self.touches = touches.len();
-                self.touch_control = Some(touches[0].position.map(|x| x as f32));
-            }
-            geng::Event::TouchEnd { touches } => {
-                if touches.is_empty() {
-                } else {
-                    self.touch_control = Some(touches[0].position.map(|x| x as f32));
-                }
-                if self.touches == 1 {
+            geng::Event::TouchEnd(touch) => {
+                self.touches.remove(&touch.id);
+                if self.touches.is_empty() {
                     self.touch_control = None;
                 }
             }
-            geng::Event::MouseMove { position, .. } => {
+            geng::Event::CursorMove { position, .. } => {
                 if self
                     .geng
                     .window()
@@ -473,7 +470,7 @@ impl geng::State for Game {
                     self.touch_control = Some(position.map(|x| x as f32));
                 }
             }
-            geng::Event::MouseUp { .. } => {
+            geng::Event::MouseRelease { .. } => {
                 self.touch_control = None;
             }
             _ => {}
@@ -484,6 +481,8 @@ impl geng::State for Game {
         while self.next_update < 0.0 {
             let delta_time = 1.0 / 200.0;
             self.next_update += delta_time;
+
+            let delta_time = delta_time as f32;
             if self.geng.window().is_key_pressed(geng::Key::PageUp) {
                 self.volume += delta_time;
                 self.volume = self.volume.clamp(0.0, 1.0);
@@ -495,7 +494,6 @@ impl geng::State for Game {
                 preferences::save("volume.json", &self.volume);
             }
 
-            let delta_time = delta_time as f32;
             self.time += delta_time;
 
             self.update_interpolated(delta_time);
@@ -530,28 +528,24 @@ impl geng::State for Game {
                         .clamp(-1.0, 1.0);
                 } else {
                     if self.geng.window().is_key_pressed(geng::Key::A)
-                        || self.geng.window().is_key_pressed(geng::Key::Left)
+                        || self.geng.window().is_key_pressed(geng::Key::ArrowLeft)
                     {
                         me.input.x -= 1.0;
                     }
                     if self.geng.window().is_key_pressed(geng::Key::D)
-                        || self.geng.window().is_key_pressed(geng::Key::Right)
+                        || self.geng.window().is_key_pressed(geng::Key::ArrowRight)
                     {
                         me.input.x += 1.0;
                     }
                     if self.geng.window().is_key_pressed(geng::Key::W)
-                        || self.geng.window().is_key_pressed(geng::Key::Up)
+                        || self.geng.window().is_key_pressed(geng::Key::ArrowUp)
                     {
                         me.input.y += 1.0;
                     }
                     if self.geng.window().is_key_pressed(geng::Key::S)
-                        || self.geng.window().is_key_pressed(geng::Key::Down)
+                        || self.geng.window().is_key_pressed(geng::Key::ArrowDown)
                     {
                         me.input.y -= 1.0;
-                    }
-                    // TODO
-                    if false && !self.geng.window().is_key_pressed(geng::Key::Space) {
-                        me.input /= 2.0;
                     }
                 }
             }
@@ -609,7 +603,10 @@ impl geng::State for Game {
                         if player.id != self.player_id {
                             if self.players.get(&player.id).is_none() {
                                 self.spawn_particles.push((0.0, player.position));
-                                let mut sfx = self.assets.spawn_sound.effect();
+                                let mut sfx = self
+                                    .assets
+                                    .spawn_sound
+                                    .effect(self.geng.audio().default_type());
                                 sfx.set_volume(self.volume);
                                 sfx.play();
                             }
@@ -619,7 +616,10 @@ impl geng::State for Game {
                     for player in &self.players {
                         if player.id != self.player_id && model.players.get(&player.id).is_none() {
                             self.spawn_particles.push((0.0, player.position));
-                            let mut sfx = self.assets.spawn_sound.effect();
+                            let mut sfx = self
+                                .assets
+                                .spawn_sound
+                                .effect(self.geng.audio().default_type());
                             sfx.set_volume(self.volume);
                             sfx.play();
                         }
@@ -639,7 +639,10 @@ impl geng::State for Game {
                         && me.state == PlayerState::SpawnWalk
                     {
                         self.explosion_time = Some(0.0);
-                        let mut sfx = self.assets.boom_sound.effect();
+                        let mut sfx = self
+                            .assets
+                            .boom_sound
+                            .effect(self.geng.audio().default_type());
                         sfx.set_volume(self.volume);
                         sfx.play();
                         me.state = PlayerState::Ride { timer: 100.0 };
@@ -941,8 +944,8 @@ impl geng::State for Game {
                     model
                         .track
                         .query_shape(
-                            self.camera.center.y + self.camera.fov * 2.0,
-                            self.camera.center.y - self.camera.fov * 2.0,
+                            self.camera.center.y + self.camera.fov.value() * 2.0,
+                            self.camera.center.y - self.camera.fov.value() * 2.0,
                         )
                         .iter()
                         .map(|point| vec2(point.safe_left, point.y))
@@ -961,8 +964,8 @@ impl geng::State for Game {
                     model
                         .track
                         .query_shape(
-                            self.camera.center.y + self.camera.fov * 2.0,
-                            self.camera.center.y - self.camera.fov * 2.0,
+                            self.camera.center.y + self.camera.fov.value() * 2.0,
+                            self.camera.center.y - self.camera.fov.value() * 2.0,
                         )
                         .iter()
                         .map(|point| vec2(point.safe_right, point.y))
@@ -978,8 +981,8 @@ impl geng::State for Game {
             let vs: Vec<_> = model
                 .track
                 .query_shape(
-                    self.camera.center.y + self.camera.fov * 2.0,
-                    self.camera.center.y - self.camera.fov * 2.0,
+                    self.camera.center.y + self.camera.fov.value() * 2.0,
+                    self.camera.center.y - self.camera.fov.value() * 2.0,
                 )
                 .windows(2)
                 .flat_map(|window| {
@@ -1012,8 +1015,8 @@ impl geng::State for Game {
             let vs: Vec<_> = model
                 .track
                 .query_shape(
-                    self.camera.center.y + self.camera.fov * 2.0,
-                    self.camera.center.y - self.camera.fov * 2.0,
+                    self.camera.center.y + self.camera.fov.value() * 2.0,
+                    self.camera.center.y - self.camera.fov.value() * 2.0,
                 )
                 .windows(2)
                 .flat_map(|window| {
@@ -1092,8 +1095,8 @@ impl geng::State for Game {
         }
         if true {
             for obstacle in model.track.query_obstacles(
-                self.camera.center.y + self.camera.fov * 2.0,
-                self.camera.center.y - self.camera.fov * 2.0,
+                self.camera.center.y + self.camera.fov.value() * 2.0,
+                self.camera.center.y - self.camera.fov.value() * 2.0,
             ) {
                 if !in_view(obstacle.position) {
                     continue;
@@ -1120,8 +1123,8 @@ impl geng::State for Game {
         }
 
         for obstacle in model.track.query_obstacles(
-            self.camera.center.y + self.camera.fov * 2.0,
-            self.camera.center.y - self.camera.fov * 2.0,
+            self.camera.center.y + self.camera.fov.value() * 2.0,
+            self.camera.center.y - self.camera.fov.value() * 2.0,
         ) {
             if !in_view(obstacle.position) {
                 continue;
@@ -1222,8 +1225,8 @@ impl geng::State for Game {
             // Minimap
             let minimap_camera = geng::Camera2d {
                 center: self.camera.center + vec2(0.0, 0.0),
-                rotation: 0.0,
-                fov: 300.0,
+                rotation: Angle::ZERO,
+                fov: geng::Camera2dFov::Vertical(300.0),
             };
             let mut texture = ugli::Texture::new_uninitialized(self.geng.ugli(), vec2(128, 128));
             texture.set_filter(ugli::Filter::Nearest);
@@ -1237,8 +1240,8 @@ impl geng::State for Game {
                 let vs: Vec<_> = model
                     .track
                     .query_shape(
-                        minimap_camera.center.y + minimap_camera.fov * 2.0,
-                        minimap_camera.center.y - minimap_camera.fov * 2.0,
+                        minimap_camera.center.y + minimap_camera.fov.value() * 2.0,
+                        minimap_camera.center.y - minimap_camera.fov.value() * 2.0,
                     )
                     .windows(2)
                     .flat_map(|window| {
@@ -1277,7 +1280,7 @@ impl geng::State for Game {
                         &minimap_camera,
                         &draw2d::Quad::new(
                             Aabb2::point(vec2(minimap_camera.center.x, avalanche_position))
-                                .extend_symmetric(vec2(minimap_camera.fov, 5.0)),
+                                .extend_symmetric(vec2(minimap_camera.fov.value(), 5.0)),
                             Rgba::RED,
                         ),
                     );
@@ -1313,7 +1316,7 @@ impl geng::State for Game {
         }
 
         if let Some(pos) = model.avalanche_position {
-            let pos = pos - self.camera.center.y - self.camera.fov / 2.0;
+            let pos = pos - self.camera.center.y - self.camera.fov.value() / 2.0;
             let alpha = (1.0 - (pos - 1.0) / 5.0).clamp(0.0, 1.0);
             self.geng.draw2d().draw2d(
                 framebuffer,
@@ -1353,7 +1356,7 @@ impl geng::State for Game {
             {
                 self.ride_sound_effect.set_volume(
                     (target_player.velocity.len() / model.config.player.max_speed * 0.05
-                        + target_player.ride_volume.min(1.0) * 0.1) as f64
+                        + target_player.ride_volume.min(1.0) * 0.1)
                         * self.volume,
                 );
                 self.assets.font.draw(
@@ -1373,8 +1376,9 @@ impl geng::State for Game {
         }
         if let Some(pos) = model.avalanche_position {
             self.avalanche_sound_effect.set_volume(
-                (1.0 - ((pos - self.camera.center.y).abs() * 2.0 / self.camera.fov).powf(1.0))
-                    .clamp(0.0, 1.0) as f64
+                (1.0 - ((pos - self.camera.center.y).abs() * 2.0 / self.camera.fov.value())
+                    .powf(1.0))
+                .clamp(0.0, 1.0)
                     * self.volume,
             );
         } else {
