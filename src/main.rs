@@ -65,7 +65,11 @@ impl geng::State for LoadingScreen {
 fn main() {
     logger::init();
     geng::setup_panic_handler();
-    let mut opt: Opt = cli::parse();
+    let mut opt: Opt = if cfg!(target_arch = "wasm32") {
+        clap::Parser::parse_from(["no_args_on_web"])
+    } else {
+        cli::parse()
+    };
     if opt.connect.is_none() && opt.server.is_none() {
         #[allow(clippy::option_env_unwrap)]
         if cfg!(target_arch = "wasm32") {
