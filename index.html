@@ -99,8 +99,21 @@
             <span id="geng-progress-text"></span>
         </div>
     </div>
+    <script src="sound-fix.js"></script>
     <script type="module">
         import init from "./extremely-extreme-sports.js";
+
+        function updateBodySize() {
+            // For the rare legacy browsers that don't support it
+            if (!window.visualViewport) {
+                return;
+            }
+            document.body.style.height = window.visualViewport.height + "px";
+        }
+
+        window.addEventListener('resize', updateBodySize);
+        setInterval(updateBodySize, 100); // Because of iOS LUL
+        updateBodySize();
 
         async function load_wasm(url, onProgress) {
             let response = await fetch(url);
